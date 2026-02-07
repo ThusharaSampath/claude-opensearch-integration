@@ -1,0 +1,236 @@
+---
+name: opensearch
+description: Guide for efficiently querying OpenSearch logs via MCP tools with minimal context consumption
+---
+
+# OpenSearch MCP Usage Guide
+
+You have access to an OpenSearch MCP server that queries container logs via OpenSearch Dashboards.
+The cluster has 6.6B+ documents. **Always include time ranges to avoid timeouts.**
+
+## Available Tools
+
+| Tool | Purpose |
+|------|---------|
+| `opensearch_search` | Search logs with Lucene/KQL query syntax (primary tool) |
+| `opensearch_search_raw` | Raw Query DSL for advanced queries |
+| `opensearch_aggregate` | Aggregations (counts, terms, histograms) |
+| `opensearch_get_indices` | List indices with doc counts |
+| `opensearch_get_mappings` | Get field names/types from a sample doc |
+| `opensearch_cluster_health` | Basic cluster health |
+
+## Context Optimization Strategy (CRITICAL)
+
+The MCP server applies operations to reduce response size. **Always optimize for minimal context usage.**
+
+### Step 1: Start with summary_only to get counts
+```
+opensearch_search(index="container-logs-*", query_string="...", summary_only=true)
+```
+This returns only total_hits and time_range — costs ~100 tokens.
+
+### Step 2: If you need actual logs, use field filtering
+```
+opensearch_search(
+  index="container-logs-*",
+  query_string="...",
+  fields=["@timestamp", "log", "kubernetes.namespace_name", "kubernetes.pod_name"],
+  size=10
+)
+```
+Only returns specified fields — saves 70-80% context vs full documents.
+
+### Step 3: For high-volume analysis, use aggregations instead of fetching docs
+```
+opensearch_aggregate(
+  index="container-logs-*",
+  aggs={"by_namespace": {"terms": {"field": "kubernetes.namespace_name.keyword", "size": 20}}},
+  query={"bool": {"must": [...], "filter": [{"range": {"@timestamp": {"gte": "now-1h"}}}]}}
+)
+```
+
+## Key Parameters for opensearch_search
+
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `summary_only` | false | Set true to get only hit count, no documents |
+| `auto_prune` | true | Strips kubernetes.labels and kubernetes.annotations automatically |
+| `fields` | null | Array of specific fields to return (e.g., `["log", "@timestamp"]`) |
+| `max_chars_per_hit` | 2000 | Truncates individual hits exceeding this size |
+| `size` | 100 | Number of docs to return (max 1000) |
+| `time_from` | now-15m | Start time (ISO 8601 or relative like `now-1h`) |
+| `time_to` | now | End time |
+
+## Reading _meta Flags
+
+Every response includes a `_meta.applied_operations` array showing what the server did:
+
+| Flag | Meaning |
+|------|---------|
+| `summary_only` | Only counts returned, no documents |
+| `field_filter:field1,field2` | Only these fields were returned |
+| `auto_prune:kubernetes.labels,kubernetes.annotations` | Verbose k8s fields were removed |
+| `hits_truncated:N/M` | N out of M hits exceeded max_chars_per_hit and were truncated |
+| `partial_results:100_of_50000` | Only 100 of 50000 total hits returned |
+| `response_truncated_at_15KB` | Entire response exceeded 15KB and was cut off |
+
+### When you see `response_truncated_at_15KB`:
+1. Reduce `size` (e.g., size=5)
+2. Use `fields` to select only needed fields
+3. Use `summary_only=true` if you only need counts
+4. Use `opensearch_aggregate` for analysis instead
+
+### When you see `partial_results`:
+The query matched more documents than returned. If the user needs broader analysis, use aggregations.
+
+### When you see `hits_truncated`:
+Individual log entries were too large. Use `fields` to pick only the fields you need, or increase `max_chars_per_hit`.
+
+## Common Query Patterns
+
+### Search by trace/request ID
+```
+query_string: 'log:"*<uuid>*"'
+time_from: "2026-02-05T05:00:00.000Z"
+```
+
+### Search by namespace
+```
+query_string: 'kubernetes.namespace_name:"my-namespace"'
+```
+
+### Search errors in a namespace
+```
+query_string: 'kubernetes.namespace_name:"my-namespace" AND (log:"*error*" OR log:"*ERROR*")'
+```
+
+### Search by pod name
+```
+query_string: 'kubernetes.pod_name:"my-pod-abc123"'
+```
+
+### Combine multiple conditions
+```
+query_string: 'kubernetes.namespace_name:"prod-*" AND log:"*timeout*" AND NOT log:"*UptimeMonitor*"'
+```
+
+## Useful Fields for `fields` Parameter
+
+| Field | Description |
+|-------|-------------|
+| `@timestamp` | Log timestamp |
+| `log` | The actual log message |
+| `stream` | stdout or stderr |
+| `kubernetes.namespace_name` | K8s namespace |
+| `kubernetes.pod_name` | K8s pod name |
+| `kubernetes.container_name` | Container name |
+| `kubernetes.host` | Node name |
+| `kubernetes.pod_ip` | Pod IP address |
+| `kubernetes.labels.organization_id` | Org ID (when auto_prune=false or use aggs) |
+| `kubernetes.labels.env_name` | Environment name |
+| `kubernetes.labels.component_name` | Component name |
+
+## Time Handling
+
+- The cluster stores timestamps in **UTC**
+- The user is in **IST (UTC+5:30)** — convert accordingly
+- IST 10:45 AM = UTC 05:15 AM
+- Use relative times when possible: `now-5m`, `now-1h`, `now-24h`
+
+## Cluster Map
+
+When the user refers to a cluster by short name, map it to the correct identifier below.
+
+### Development
+| Short name | Cluster | URL |
+|---|---|---|
+| `dev-aws-eu-cp` | Dev AWS EU CP | https://opensearch-cp.dv.eu.example.com/ |
+| `dev-aws-eu-cdp` | Dev AWS EU CDP | https://opensearch.e1-eu-central-cdp.dv.example.com |
+| `dev-azure-us-cp` | Dev Azure US CP | **No OpenSearch** (use Log Analytics Workspace) |
+| `dev-azure-us-cdp` | Dev Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.preview-dv.example.com |
+| `dev-azure-eu-cdp` | Dev Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.preview-dv.example.com |
+| `dev-azure-pdp-userdev` | Dev Azure PDP (Userdev) | https://opensearch-dashboard.dev.example-dev.example.com |
+| `dev-azure-pdp-userprod` | Dev Azure PDP (Userprod) | https://opensearch-dashboard.example-dev.example.com |
+| `dev-aws-pdp` | Dev AWS PDP | https://opensearch-dashboard.dv.dap.example.com/ |
+| `dev-onprem-cp` | Dev OnPrem CP | https://opensearch-dashboard-cp.preview-dv.example.com |
+| `dev-onprem-dp` | Dev OnPrem DP | https://opensearch-dashboard.e1-us-east-azure.preview-dv.example.com |
+| `dev-onprem-e2e-pdp` | Dev OnPrem e2e PDP | https://opensearch-dashboard.nonprod.e2e-dv.preview-dv.example.com |
+
+### Staging
+| Short name | Cluster | URL |
+|---|---|---|
+| `stg-aws-eu-cp` | Staging AWS EU CP | https://opensearch-cp.stv.eu.example.com |
+| `stg-aws-eu-cdp` | Staging AWS EU CDP | https://opensearch.e1-eu-west-cdp.st.example.com |
+| `stg-azure-us-cp` | Staging Azure US CP | **No OpenSearch** (use Log Analytics Workspace) |
+| `stg-azure-us-cdp` | Staging Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.st.example.com |
+| `stg-azure-eu-cdp` | Staging Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.st.example.com |
+| `stg-azure-pdp-userdev` | Staging Azure PDP (Userdev) | https://opensearch-dashboard.dev.example-stg.example.com/ |
+| `stg-azure-pdp-userprod` | Staging Azure PDP (Userprod) | https://opensearch-dashboard.example-stg.example.com/ |
+| `stg-onprem-e2e-pdp` | Staging OnPrem e2e PDP | https://opensearch-dashboard.nonprod.e2e-stg.st.example.com |
+
+### Production
+| Short name | Cluster | URL |
+|---|---|---|
+| `prod-aws-eu-cp` | Prod AWS EU CP | https://opensearch-cp.eu.example.com |
+| `prod-azure-us-cp` | Prod Azure US CP | **No OpenSearch** (use Log Analytics Workspace) |
+| `prod-aws-eu-cdp` | Prod AWS EU CDP | https://opensearch.e1-eu-west-cdp.example.com |
+| `prod-azure-us-cdp` | Prod Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.example.com |
+| `prod-azure-eu-cdp` | Prod Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.example.com |
+| `prod-tenant-a-userprod` | Prod Tenant-A UserProd PDP | https://opensearch-dashboard.prod.tenant-a.example.com |
+| `prod-tenant-a-nonprod-onprem` | Prod Tenant-A Non-Prod OnPrem PDP | https://opensearch-dashboard.nonprod.tenant-a.example.com (requires FortiClient VPN) |
+| `prod-tenant-b` | Prod Tenant-B UserNonProd PDP | https://opensearch-dashboard.dv.tb.example.com |
+| `prod-tenant-c` | Prod Tenant-C UserProd PDP | https://opensearch-dashboard.prod.tc.example.com |
+| `prod-tenant-d` | Prod Tenant-D UserProd PDP | https://opensearch-dashboard.prod.td.example.com |
+
+### Common aliases
+When the user says any of these, map to the corresponding cluster:
+- "prod" / "production" → `prod-azure-us-cdp` (the main production cluster)
+- "dev" / "development" → `dev-azure-us-cdp`
+- "stg" / "staging" → `stg-azure-us-cdp`
+- "dev onprem" → `dev-onprem-cp` or `dev-onprem-dp` (ask which)
+- "prod eu" → `prod-azure-eu-cdp`
+- "dev eu" → `dev-azure-eu-cdp`
+- "tenant-a" → `prod-tenant-a-userprod`
+- "tenant-c" / "tc" → `prod-tenant-c`
+- "tenant-d" → `prod-tenant-d`
+- "tenant-b" → `prod-tenant-b`
+
+If the user asks to query a cluster that has **No OpenSearch**, inform them it uses Azure Log Analytics Workspace instead and is not queryable through this MCP.
+
+If the user wants to switch to a different cluster, instruct them to run:
+```
+./get-cookies.py <cluster-short-name>
+```
+Then restart Claude Code.
+
+## Handling HTTP 401 Errors (Expired Cookies)
+
+If any MCP tool returns `HTTP Error 401: {"statusCode":401,"error":"Unauthorized","message":"Unauthorized"}`, this means the **OpenSearch session cookies have expired**. OIDC cookies are short-lived and expire after a few hours.
+
+**Instruct the user to refresh cookies using the get-cookies script:**
+
+```
+The OpenSearch session cookies have expired (401 Unauthorized).
+To refresh them, run:
+
+  cd /path/to/opensearch-agent/opensearch-mcp-wrapper
+  ./get-cookies.py prod
+
+This will open a browser, SSO will auto-authenticate, and new cookies
+will be written to .mcp.json. Then restart Claude Code (/exit and relaunch).
+
+Available clusters: run ./get-cookies.py --list
+For a custom URL: ./get-cookies.py --url https://your-opensearch-url.com
+```
+
+After the user restarts, retry the failed query.
+
+**Do NOT retry the same query after a 401** — it will fail again until cookies are refreshed.
+
+## Cost-Conscious Query Plan
+
+For any user request, follow this order:
+1. **Count first** — `summary_only=true` to understand volume
+2. **Sample if large** — `size=5, fields=[...]` to understand shape
+3. **Aggregate if analytical** — use `opensearch_aggregate` for breakdowns
+4. **Full fetch only when needed** — small result sets with field filtering
