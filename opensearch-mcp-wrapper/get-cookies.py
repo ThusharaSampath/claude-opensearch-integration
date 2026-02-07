@@ -19,6 +19,7 @@ import argparse
 import json
 import sys
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -122,6 +123,18 @@ def fetch_cookies(url: str, headless: bool = False, timeout: int = 60) -> str:
     return cookie_str
 
 
+def save_cookies_json(cookie_str: str, url: str):
+    """Write cookies to cookies.json for the MCP server to read at request time."""
+    cookies_file = Path(__file__).parent / "cookies.json"
+    data = {
+        "cookie": cookie_str,
+        "url": url,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    cookies_file.write_text(json.dumps(data, indent=2) + "\n")
+    print(f"Updated {cookies_file}")
+
+
 def update_mcp_json(cookie_str: str, url: str):
     """Update the .mcp.json file with new cookies and URL."""
     if MCP_JSON_PATH.exists():
@@ -205,8 +218,11 @@ def main():
     if args.print_only:
         print(f"\nCookies:\n{cookie_str}")
     else:
+        # Write cookies.json (read by MCP server at request time — no restart needed)
+        save_cookies_json(cookie_str, url)
+        # Also update .mcp.json (used on MCP server startup as fallback)
         update_mcp_json(cookie_str, url)
-        print(f"\nDone! Restart Claude Code to use the new cookies.")
+        print(f"\nDone! Cookies refreshed. No Claude Code restart needed.")
 
 
 if __name__ == "__main__":

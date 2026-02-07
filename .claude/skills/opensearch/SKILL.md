@@ -203,29 +203,43 @@ If the user wants to switch to a different cluster, instruct them to run:
 ```
 Then restart Claude Code.
 
-## Handling HTTP 401 Errors (Expired Cookies)
+## Cookie Management and 401 Handling
 
-If any MCP tool returns `HTTP Error 401: {"statusCode":401,"error":"Unauthorized","message":"Unauthorized"}`, this means the **OpenSearch session cookies have expired**. OIDC cookies are short-lived and expire after a few hours.
+The MCP server has **automatic cookie refresh**. Here's how it works:
 
-**Instruct the user to refresh cookies using the get-cookies script:**
+### Auto-refresh (transparent to you)
+1. When a request gets 401, the server automatically launches a headless Playwright browser
+2. It uses the cached Azure AD SSO session to get fresh cookies
+3. Saves them to `cookies.json` and retries the request
+4. You (Claude) never see the 401 — it's handled internally
 
+### When auto-refresh fails
+If the SSO session itself has expired (user hasn't logged in via browser recently), auto-refresh fails.
+The server returns a structured error like:
+```json
+{
+  "error": "Unauthorized — cookies expired and auto-refresh failed",
+  "action_required": "Run the cookie refresh script manually",
+  "command": "cd ... && ./get-cookies.py prod",
+  "note": "No Claude Code restart needed after refresh."
+}
 ```
-The OpenSearch session cookies have expired (401 Unauthorized).
-To refresh them, run:
+
+**When you see this error, instruct the user:**
+```
+The OpenSearch cookies have expired and automatic refresh failed (SSO session expired).
+To fix, run:
 
   cd /path/to/opensearch-agent/opensearch-mcp-wrapper
-  ./get-cookies.py prod
+  ./get-cookies.py <cluster-name>
 
-This will open a browser, SSO will auto-authenticate, and new cookies
-will be written to .mcp.json. Then restart Claude Code (/exit and relaunch).
+This opens a browser for you to log in. After login completes, cookies are
+saved automatically. **No Claude Code restart needed** — just retry the query.
 
-Available clusters: run ./get-cookies.py --list
-For a custom URL: ./get-cookies.py --url https://your-opensearch-url.com
+Available clusters: ./get-cookies.py --list
 ```
 
-After the user restarts, retry the failed query.
-
-**Do NOT retry the same query after a 401** — it will fail again until cookies are refreshed.
+**Important:** After the user runs the script, you CAN retry the query immediately — no restart needed. The server reads `cookies.json` fresh on every request.
 
 ## Cost-Conscious Query Plan
 
