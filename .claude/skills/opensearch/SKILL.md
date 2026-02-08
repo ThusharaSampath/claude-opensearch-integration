@@ -18,6 +18,8 @@ The cluster has 6.6B+ documents. **Always include time ranges to avoid timeouts.
 | `opensearch_get_indices` | List indices with doc counts |
 | `opensearch_get_mappings` | Get field names/types from a sample doc |
 | `opensearch_cluster_health` | Basic cluster health |
+| `opensearch_switch_cluster` | Switch to a different cluster on-the-fly (no restart needed) |
+| `opensearch_get_active_cluster` | Show currently active cluster name, URL, and cookie age |
 
 ## Context Optimization Strategy (CRITICAL)
 
@@ -86,22 +88,65 @@ The query matched more documents than returned. If the user needs broader analys
 ### When you see `hits_truncated`:
 Individual log entries were too large. Use `fields` to pick only the fields you need, or increase `max_chars_per_hit`.
 
-## Common Query Patterns
+## CRITICAL: Searching the `log` Field
 
-### Search by trace/request ID
+The `log` field in `container-logs-*` is mapped as **keyword** (not analyzed text). This means:
+
+- **`query_string` with `log:*error*` returns 0 hits** — keyword fields have no tokens to match against
+- **`match_phrase` / `term` on `log` returns 0 hits** — same reason
+- **`wildcard` query works** — it scans the raw stored string
+
+**Always use `opensearch_search_raw` with `wildcard` when searching inside log content:**
+
+### Search errors in logs
+```json
+opensearch_search_raw(
+  index="container-logs-*",
+  body={
+    "query": {"bool": {"must": [
+      {"range": {"@timestamp": {"gte": "now-5m", "lte": "now"}}},
+      {"wildcard": {"log": "*level*error*"}}
+    ]}},
+    "size": 20,
+    "_source": ["@timestamp", "log", "kubernetes.namespace_name", "kubernetes.pod_name"]
+  }
+)
 ```
-query_string: 'log:"*<uuid>*"'
-time_from: "2026-02-05T05:00:00.000Z"
+
+### Search by trace/request ID in logs
+```json
+opensearch_search_raw(
+  index="container-logs-*",
+  body={
+    "query": {"bool": {"must": [
+      {"range": {"@timestamp": {"gte": "now-1h", "lte": "now"}}},
+      {"wildcard": {"log": "*77e71a17-2e52-404a-86d2-eed997fd2a57*"}}
+    ]}},
+    "size": 20,
+    "_source": ["@timestamp", "log", "kubernetes.namespace_name", "kubernetes.pod_name"]
+  }
+)
 ```
+
+### Aggregate error logs by namespace
+```json
+opensearch_aggregate(
+  index="container-logs-*",
+  query={"bool": {"must": [
+    {"range": {"@timestamp": {"gte": "now-5m", "lte": "now"}}},
+    {"wildcard": {"log": "*level*error*"}}
+  ]}},
+  aggs={"namespaces": {"terms": {"field": "kubernetes.namespace_name", "size": 10}}}
+)
+```
+
+**Note**: `query_string` and `opensearch_search` work fine for **non-keyword fields** like `kubernetes.namespace_name`, `stream`, `kubernetes.pod_name`, etc.
+
+## Common Query Patterns (non-log fields — use opensearch_search)
 
 ### Search by namespace
 ```
 query_string: 'kubernetes.namespace_name:"my-namespace"'
-```
-
-### Search errors in a namespace
-```
-query_string: 'kubernetes.namespace_name:"my-namespace" AND (log:"*error*" OR log:"*ERROR*")'
 ```
 
 ### Search by pod name
@@ -109,9 +154,25 @@ query_string: 'kubernetes.namespace_name:"my-namespace" AND (log:"*error*" OR lo
 query_string: 'kubernetes.pod_name:"my-pod-abc123"'
 ```
 
-### Combine multiple conditions
+### Search stderr logs
 ```
-query_string: 'kubernetes.namespace_name:"prod-*" AND log:"*timeout*" AND NOT log:"*UptimeMonitor*"'
+query_string: 'stream:stderr'
+```
+
+### Combine namespace filter with log content search (use opensearch_search_raw)
+```json
+opensearch_search_raw(
+  index="container-logs-*",
+  body={
+    "query": {"bool": {"must": [
+      {"range": {"@timestamp": {"gte": "now-5m", "lte": "now"}}},
+      {"term": {"kubernetes.namespace_name": "my-namespace"}},
+      {"wildcard": {"log": "*timeout*"}}
+    ]}},
+    "size": 20,
+    "_source": ["@timestamp", "log", "kubernetes.pod_name"]
+  }
+)
 ```
 
 ## Useful Fields for `fields` Parameter
@@ -197,11 +258,22 @@ When the user says any of these, map to the corresponding cluster:
 
 If the user asks to query a cluster that has **No OpenSearch**, inform them it uses Azure Log Analytics Workspace instead and is not queryable through this MCP.
 
-If the user wants to switch to a different cluster, instruct them to run:
+### Switching Clusters
+
+When the user wants to query a different cluster, use the `opensearch_switch_cluster` tool:
 ```
+opensearch_switch_cluster(cluster="prod-azure-eu-cdp")
+```
+This automatically fetches cookies via headless SSO and switches all subsequent queries to the new cluster. No restart needed.
+
+If the tool returns an error (SSO session expired), instruct the user to run:
+```
+cd /path/to/opensearch-agent/opensearch-mcp-wrapper
 ./get-cookies.py <cluster-short-name>
 ```
-Then restart Claude Code.
+This opens a browser for manual login. After login, retry — no restart needed.
+
+Use `opensearch_get_active_cluster` to check which cluster is currently active before switching.
 
 ## Cookie Management and 401 Handling
 
@@ -213,17 +285,12 @@ The MCP server has **automatic cookie refresh**. Here's how it works:
 3. Saves them to `cookies.json` and retries the request
 4. You (Claude) never see the 401 — it's handled internally
 
+### Cluster switching also refreshes cookies
+When you call `opensearch_switch_cluster`, it fetches fresh cookies for the target cluster via headless SSO. If that fails, the tool returns an error with manual instructions.
+
 ### When auto-refresh fails
 If the SSO session itself has expired (user hasn't logged in via browser recently), auto-refresh fails.
-The server returns a structured error like:
-```json
-{
-  "error": "Unauthorized — cookies expired and auto-refresh failed",
-  "action_required": "Run the cookie refresh script manually",
-  "command": "cd ... && ./get-cookies.py prod",
-  "note": "No Claude Code restart needed after refresh."
-}
-```
+The server returns a structured error with `action_required` and a `command` to run.
 
 **When you see this error, instruct the user:**
 ```

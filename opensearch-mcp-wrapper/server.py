@@ -26,8 +26,10 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-# Configuration from environment
-OPENSEARCH_URL = os.environ.get("OPENSEARCH_URL", "").rstrip("/")
+from clusters import CLUSTERS
+
+# Configuration from environment (used as fallbacks)
+OPENSEARCH_URL_ENV = os.environ.get("OPENSEARCH_URL", "").rstrip("/")
 OPENSEARCH_COOKIE = os.environ.get("OPENSEARCH_COOKIE", "")
 OPENSEARCH_VERIFY_SSL = os.environ.get("OPENSEARCH_VERIFY_SSL", "true").lower() == "true"
 OSD_VERSION = os.environ.get("OSD_VERSION", "2.18.0")
@@ -36,6 +38,16 @@ OSD_VERSION = os.environ.get("OSD_VERSION", "2.18.0")
 SERVER_DIR = Path(__file__).parent
 COOKIES_FILE = SERVER_DIR / "cookies.json"
 BROWSER_DATA_DIR = SERVER_DIR / ".browser-data"
+LOG_FILE = SERVER_DIR / "server.log"
+
+
+def log(msg: str):
+    """Write a timestamped log line to both stderr and server.log for debugging."""
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{ts}] {msg}"
+    print(line, file=sys.stderr)
+    with open(LOG_FILE, "a") as f:
+        f.write(line + "\n")
 
 # Cookie names required for OpenSearch Dashboards OIDC auth
 REQUIRED_COOKIES = ["security_authentication", "security_authentication_oidc1"]
@@ -43,7 +55,46 @@ REQUIRED_COOKIES = ["security_authentication", "security_authentication_oidc1"]
 server = Server("opensearch-cookie-auth")
 
 
-# ── Cookie Management ─────────────────────────────────────────────────────────
+# ── Cookie & URL Management ───────────────────────────────────────────────────
+
+def _read_cookies_json() -> dict | None:
+    """Read and parse cookies.json, returning None on any error."""
+    if COOKIES_FILE.exists():
+        try:
+            return json.loads(COOKIES_FILE.read_text())
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return None
+
+
+def get_active_url() -> str:
+    """Get the active OpenSearch URL, preferring cookies.json over env var.
+
+    This is read on every request so cluster switches take effect immediately.
+    """
+    data = _read_cookies_json()
+    if data:
+        url = data.get("url", "").rstrip("/")
+        if url:
+            return url
+    return OPENSEARCH_URL_ENV
+
+
+def get_active_cluster() -> dict:
+    """Get info about the currently active cluster."""
+    data = _read_cookies_json()
+    if data:
+        return {
+            "cluster": data.get("cluster", "unknown"),
+            "url": data.get("url", ""),
+            "updated_at": data.get("updated_at", ""),
+        }
+    return {
+        "cluster": "unknown",
+        "url": OPENSEARCH_URL_ENV,
+        "updated_at": "",
+    }
+
 
 def load_cookies() -> str:
     """Load cookies from cookies.json, falling back to env var.
@@ -51,81 +102,104 @@ def load_cookies() -> str:
     cookies.json is read on every request so that refreshed cookies
     are picked up without restarting the MCP server.
     """
-    if COOKIES_FILE.exists():
-        try:
-            data = json.loads(COOKIES_FILE.read_text())
-            cookie_str = data.get("cookie", "")
-            if cookie_str:
-                return cookie_str
-        except (json.JSONDecodeError, KeyError):
-            pass
+    data = _read_cookies_json()
+    if data:
+        cookie_str = data.get("cookie", "")
+        if cookie_str:
+            return cookie_str
     return OPENSEARCH_COOKIE
 
 
-def save_cookies(cookie_str: str):
+def save_cookies(cookie_str: str, url: str = None, cluster: str = None):
     """Persist cookies to cookies.json for future requests."""
+    # Preserve existing cluster/url if not provided
+    existing = _read_cookies_json() or {}
     data = {
         "cookie": cookie_str,
-        "url": OPENSEARCH_URL,
+        "url": url or existing.get("url", OPENSEARCH_URL_ENV),
+        "cluster": cluster or existing.get("cluster", "unknown"),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     COOKIES_FILE.write_text(json.dumps(data, indent=2) + "\n")
-    print(f"[cookie-refresh] Saved fresh cookies to {COOKIES_FILE}", file=sys.stderr)
+    log(f"[cookie-refresh] Saved fresh cookies to {COOKIES_FILE}")
 
 
-def auto_refresh_cookies() -> str | None:
-    """Attempt to refresh cookies using Playwright with cached SSO session.
+async def _refresh_cookies_for_url(url: str, headless: bool = True) -> str | None:
+    """Attempt to refresh cookies for a specific URL using async Playwright.
 
     Returns the new cookie string on success, None on failure.
-    This runs headless — it only works if the Azure AD SSO session
-    is cached in the persistent browser profile (.browser-data/).
+    Must be called from within an asyncio event loop.
     """
     try:
-        from playwright.sync_api import sync_playwright
+        from playwright.async_api import async_playwright
     except ImportError:
-        print("[cookie-refresh] Playwright not installed, cannot auto-refresh", file=sys.stderr)
+        log("[cookie-refresh] Playwright not installed, cannot auto-refresh")
         return None
 
-    print(f"[cookie-refresh] Attempting auto-refresh for {OPENSEARCH_URL} ...", file=sys.stderr)
+    log(f"[cookie-refresh] Attempting {'headless' if headless else 'headed'} refresh for {url}")
+    log(f"[cookie-refresh] Browser data dir: {BROWSER_DATA_DIR} (exists={BROWSER_DATA_DIR.exists()})")
 
     try:
-        with sync_playwright() as p:
-            context = p.chromium.launch_persistent_context(
+        async with async_playwright() as p:
+            context = await p.chromium.launch_persistent_context(
                 str(BROWSER_DATA_DIR),
-                headless=True,
+                headless=headless,
                 accept_downloads=False,
             )
+            log("[cookie-refresh] Browser launched successfully")
 
-            page = context.new_page()
-            page.goto(OPENSEARCH_URL, wait_until="domcontentloaded")
+            page = await context.new_page()
+            log(f"[cookie-refresh] Navigating to {url}")
+            await page.goto(url, wait_until="domcontentloaded")
+            log(f"[cookie-refresh] Page loaded. Current URL: {page.url}")
+            log(f"[cookie-refresh] Page title: {await page.title()}")
 
             # Wait for SSO redirect to complete and cookies to appear
             cookies = {}
-            for _ in range(60):  # poll for up to 30 seconds
-                all_cookies = context.cookies(OPENSEARCH_URL)
+            final_url = page.url
+            for i in range(60):  # poll for up to 30 seconds
+                all_cookies = await context.cookies(url)
                 for c in all_cookies:
                     if c["name"] in REQUIRED_COOKIES:
                         cookies[c["name"]] = c["value"]
                 if len(cookies) == len(REQUIRED_COOKIES):
+                    log(f"[cookie-refresh] Got both cookies after {i * 0.5}s")
                     break
-                page.wait_for_timeout(500)
+                if i % 10 == 0:  # log every 5 seconds
+                    all_names = [c["name"] for c in all_cookies]
+                    final_url = page.url
+                    log(f"[cookie-refresh] Poll {i}/60 — current URL: {final_url}")
+                    log(f"[cookie-refresh] Poll {i}/60 — all cookie names: {all_names}")
+                    log(f"[cookie-refresh] Poll {i}/60 — matched so far: {list(cookies.keys())}")
+                await page.wait_for_timeout(500)
 
-            context.close()
+            await context.close()
 
             if len(cookies) == len(REQUIRED_COOKIES):
                 cookie_str = "; ".join(f"{name}={value}" for name, value in cookies.items())
-                save_cookies(cookie_str)
-                print("[cookie-refresh] Auto-refresh successful!", file=sys.stderr)
+                log("[cookie-refresh] Refresh successful!")
                 return cookie_str
             else:
                 found = list(cookies.keys())
-                print(f"[cookie-refresh] Auto-refresh failed — only got: {found}", file=sys.stderr)
-                print("[cookie-refresh] SSO session may have expired. Manual login required.", file=sys.stderr)
+                log(f"[cookie-refresh] Refresh FAILED — only got: {found}")
+                log(f"[cookie-refresh] Final page URL was: {final_url}")
                 return None
 
     except Exception as e:
-        print(f"[cookie-refresh] Auto-refresh error: {e}", file=sys.stderr)
+        log(f"[cookie-refresh] Refresh error: {type(e).__name__}: {e}")
         return None
+
+
+async def auto_refresh_cookies() -> str | None:
+    """Attempt to refresh cookies for the active URL using headless Playwright.
+
+    Returns the new cookie string on success, None on failure.
+    """
+    url = get_active_url()
+    cookie_str = await _refresh_cookies_for_url(url, headless=True)
+    if cookie_str:
+        save_cookies(cookie_str, url=url)
+    return cookie_str
 
 
 # ── HTTP Client ───────────────────────────────────────────────────────────────
@@ -135,19 +209,20 @@ def get_client(cookie_str: str = None) -> httpx.Client:
     if cookie_str is None:
         cookie_str = load_cookies()
 
+    url = get_active_url()
     headers = {
         "Accept": "*/*",
         "Content-Type": "application/json",
         "osd-xsrf": "osd-fetch",
         "osd-version": OSD_VERSION,
-        "Origin": OPENSEARCH_URL,
-        "Referer": f"{OPENSEARCH_URL}/app/data-explorer/discover",
+        "Origin": url,
+        "Referer": f"{url}/app/data-explorer/discover",
     }
     if cookie_str:
         headers["Cookie"] = cookie_str
 
     return httpx.Client(
-        base_url=OPENSEARCH_URL,
+        base_url=url,
         headers=headers,
         verify=OPENSEARCH_VERIFY_SSL,
         timeout=120.0,
@@ -367,14 +442,122 @@ async def list_tools() -> list[Tool]:
                 "properties": {},
             },
         ),
+        Tool(
+            name="opensearch_switch_cluster",
+            description=(
+                "Switch to a different OpenSearch cluster. Fetches fresh cookies via headless SSO "
+                "and updates the active cluster. No restart needed. "
+                "Use opensearch_get_active_cluster to see the current cluster first."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "cluster": {
+                        "type": "string",
+                        "description": (
+                            "Cluster short name (e.g., 'prod-azure-us-cdp', 'dev-aws-eu-cp'). "
+                            "Use opensearch_get_active_cluster or see the cluster registry for valid names."
+                        ),
+                    },
+                    "headless": {
+                        "type": "boolean",
+                        "description": "Run browser in headless mode (default: true). Only works if SSO session is cached.",
+                        "default": True,
+                    },
+                },
+                "required": ["cluster"],
+            },
+        ),
+        Tool(
+            name="opensearch_get_active_cluster",
+            description="Get the currently active OpenSearch cluster name, URL, and when cookies were last refreshed.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            },
+        ),
     ]
 
 
 # ── Tool Execution with Auto-Retry on 401 ────────────────────────────────────
 
+def _update_mcp_json_url(url: str):
+    """Update the OPENSEARCH_URL in .mcp.json so next restart picks up the right cluster."""
+    mcp_json_path = SERVER_DIR.parent / ".mcp.json"
+    if not mcp_json_path.exists():
+        return
+    try:
+        config = json.loads(mcp_json_path.read_text())
+        if "opensearch" in config.get("mcpServers", {}):
+            config["mcpServers"]["opensearch"]["env"]["OPENSEARCH_URL"] = url
+            mcp_json_path.write_text(json.dumps(config, indent=2) + "\n")
+            log(f"[cluster-switch] Updated OPENSEARCH_URL in {mcp_json_path}")
+    except Exception as e:
+        log(f"[cluster-switch] Warning: could not update .mcp.json: {e}")
+
+
+async def _handle_switch_cluster(arguments: dict[str, Any]) -> dict:
+    """Handle the opensearch_switch_cluster tool."""
+    cluster_name = arguments["cluster"]
+    headless = arguments.get("headless", True)
+
+    # Validate cluster name
+    if cluster_name not in CLUSTERS:
+        available = [k for k, (u, _) in CLUSTERS.items() if u is not None]
+        return {
+            "error": f"Unknown cluster: '{cluster_name}'",
+            "available_clusters": available,
+        }
+
+    url, desc = CLUSTERS[cluster_name]
+    if url is None:
+        return {
+            "error": f"'{cluster_name}' does not have OpenSearch",
+            "description": desc,
+        }
+
+    url = url.rstrip("/")
+
+    # Attempt to get cookies via Playwright SSO
+    cookie_str = await _refresh_cookies_for_url(url, headless=headless)
+
+    if cookie_str is None:
+        return {
+            "error": "Cookie refresh failed — SSO session may have expired",
+            "cluster": cluster_name,
+            "url": url,
+            "action_required": "Run the cookie refresh script manually with a browser",
+            "command": f"cd {SERVER_DIR} && ./get-cookies.py {cluster_name}",
+            "note": "This opens a browser for you to log in. No Claude Code restart needed after.",
+        }
+
+    # Save cookies with cluster info
+    save_cookies(cookie_str, url=url, cluster=cluster_name)
+
+    # Update .mcp.json so next restart picks up the right cluster
+    _update_mcp_json_url(url)
+
+    return {
+        "success": True,
+        "cluster": cluster_name,
+        "description": desc,
+        "url": url,
+        "message": f"Switched to {cluster_name} ({desc}). All subsequent queries will use this cluster.",
+    }
+
+
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Execute an OpenSearch tool with automatic cookie refresh on 401."""
+    # Handle tools that don't need an HTTP client
+    if name == "opensearch_get_active_cluster":
+        result = get_active_cluster()
+        return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+
+    if name == "opensearch_switch_cluster":
+        result = await _handle_switch_cluster(arguments)
+        return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+
     try:
         result = await _call_tool_with_retry(name, arguments)
         result_str = json.dumps(result, indent=2, default=str)
@@ -409,35 +592,39 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 async def _call_tool_with_retry(name: str, arguments: dict[str, Any]) -> Any:
     """Execute a tool, auto-refreshing cookies on 401 and retrying once."""
     # First attempt with current cookies
+    failed_request = None
     try:
         with get_client() as client:
             return await execute_tool(client, name, arguments)
     except httpx.HTTPStatusError as e:
         if e.response.status_code != 401:
             raise
+        failed_request = e.request
 
     # Got 401 — try auto-refresh
-    print("[cookie-refresh] Got 401, attempting automatic cookie refresh...", file=sys.stderr)
-    new_cookies = auto_refresh_cookies()
+    log("[cookie-refresh] Got 401, attempting automatic cookie refresh...")
+    new_cookies = await auto_refresh_cookies()
 
     if new_cookies is None:
         # Auto-refresh failed — return helpful error
+        cluster_info = get_active_cluster()
+        cluster_name = cluster_info.get("cluster", "unknown")
         raise httpx.HTTPStatusError(
             message="Cookie refresh failed",
-            request=e.request,
+            request=failed_request,
             response=httpx.Response(
                 status_code=401,
                 text=json.dumps({
                     "error": "Unauthorized — cookies expired and auto-refresh failed",
                     "action_required": "Run the cookie refresh script manually",
-                    "command": f"cd {SERVER_DIR} && ./get-cookies.py prod",
+                    "command": f"cd {SERVER_DIR} && ./get-cookies.py {cluster_name}",
                     "note": "SSO browser session may have expired. The script will open a browser for you to log in. No Claude Code restart needed after refresh.",
                 }),
             ),
         )
 
     # Retry with fresh cookies
-    print("[cookie-refresh] Retrying with fresh cookies...", file=sys.stderr)
+    log("[cookie-refresh] Retrying with fresh cookies...")
     with get_client(cookie_str=new_cookies) as client:
         return await execute_tool(client, name, arguments)
 
@@ -661,8 +848,8 @@ async def execute_tool(client: httpx.Client, name: str, arguments: dict[str, Any
 
 async def main():
     """Run the MCP server."""
-    if not OPENSEARCH_URL:
-        print("Error: OPENSEARCH_URL environment variable is required", file=sys.stderr)
+    if not OPENSEARCH_URL_ENV and not COOKIES_FILE.exists():
+        print("Error: OPENSEARCH_URL environment variable is required (or cookies.json with url)", file=sys.stderr)
         sys.exit(1)
 
     if not OPENSEARCH_COOKIE and not COOKIES_FILE.exists():

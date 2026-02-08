@@ -127,15 +127,40 @@ Referer: <OPENSEARCH_URL>/app/data-explorer/discover
 
 ### Query Format
 
-**The browser uses `query_string` with `analyze_wildcard: true`**, not `wildcard` or `match_phrase` queries.
+**The `log` field in `container-logs-*` is mapped as `keyword` (not analyzed text).** This has major implications for how you search log content:
 
-Example - searching for a UUID in logs:
+| Query Type | Works on `log` field? | Why |
+|---|---|---|
+| `query_string` with `log:*error*` | **No** — returns 0 hits | Keyword fields are not tokenized; there are no "error" tokens to match |
+| `match_phrase` / `term` | **No** — returns 0 hits | Same reason — looks for analyzed tokens that don't exist |
+| `wildcard` query (Query DSL) | **Yes** | Scans the raw stored string character by character |
+
+**Always use `wildcard` queries via `opensearch_search_raw` when searching inside the `log` field:**
 ```json
 {
-  "query_string": {
-    "query": "log:\"*77e71a17-2e52-404a-86d2-eed997fd2a57*\"",
-    "analyze_wildcard": true,
-    "time_zone": "Asia/Colombo"
+  "wildcard": {"log": "*level*error*"}
+}
+```
+
+**Exception**: `query_string` works fine for **non-keyword fields** like `kubernetes.namespace_name`, `kubernetes.pod_name`, `stream`, etc.
+
+**Exception**: `query_string` with `analyze_wildcard: true` may work on some clusters where `log` is mapped as `text`. Always verify with a test query first.
+
+Example - searching for a UUID in logs (use wildcard):
+```json
+{
+  "wildcard": {"log": "*77e71a17-2e52-404a-86d2-eed997fd2a57*"}
+}
+```
+
+Example - combining wildcard log search with time range:
+```json
+{
+  "bool": {
+    "must": [
+      {"range": {"@timestamp": {"gte": "now-5m", "lte": "now"}}},
+      {"wildcard": {"log": "*level*error*"}}
+    ]
   }
 }
 ```
@@ -163,6 +188,9 @@ When using curl, pass cookies with the `-b` flag, not as a `-H 'Cookie: ...'` he
 | 7 | `match_phrase` query didn't match UUID | The UUID is embedded inside a JSON string in the `log` field | Use `query_string` with `analyze_wildcard: true` |
 | 8 | Large responses filling Claude's context | Full docs with k8s metadata are huge | Added auto_prune, fields, summary_only, max_chars_per_hit, 15KB cap |
 | 9 | Cookie refresh requires Claude Code restart | Env vars read at process start | Server now reads `cookies.json` at request time, no restart needed |
+| 10 | Auto cookie refresh silently fails | Playwright sync API cannot run inside asyncio event loop (MCP server is async) | Switched to `async_playwright` (async API) in `_refresh_cookies_for_url` |
+| 11 | `e` variable not accessible after except block | Python 3 deletes exception variable after `except` block exits | Saved `e.request` to `failed_request` before leaving the except block |
+| 12 | `query_string` with `log:*error*` returns 0 hits | `log` field is mapped as `keyword` (not analyzed text) — no tokens exist to match | Use `wildcard` query via `opensearch_search_raw` instead (e.g., `{"wildcard": {"log": "*level*error*"}}`) |
 
 ## Cluster Registry
 
@@ -234,16 +262,17 @@ opensearch-agent/
 │   └── skills/
 │       └── opensearch/
 │           └── SKILL.md                # Claude skill for efficient OpenSearch querying
-├── KNOWLEDGE.md                        # This file
+├── CLAUDE.md                           # This file (project knowledge base)
 └── opensearch-mcp-wrapper/
-    ├── server.py                       # MCP server with cookie auth, auto-refresh, context optimization
+    ├── server.py                       # MCP server with cookie auth, auto-refresh, cluster switching, context optimization
+    ├── clusters.py                     # Shared cluster registry (imported by server.py and get-cookies.py)
     ├── get-cookies.py                  # Playwright-based cookie fetcher (SSO, multi-cluster)
-    ├── cookies.json                    # Auto-managed cookie store (read at request time, no restart needed)
+    ├── cookies.json                    # Auto-managed cookie store (includes cluster name, read at request time)
+    ├── server.log                      # Debug log file (written by server.py for diagnosing refresh issues)
     ├── .browser-data/                  # Playwright persistent browser profile (caches SSO session)
     ├── requirements.txt                # Python dependencies (mcp, httpx, playwright)
     ├── pyproject.toml                  # Project metadata
-    ├── venv/                           # Python virtual environment
-    └── KNOWLEDGE.md                    # (legacy, see root KNOWLEDGE.md)
+    └── venv/                           # Python virtual environment
 ```
 
 ## Configuration
@@ -271,6 +300,7 @@ opensearch-agent/
 {
   "cookie": "security_authentication_oidc1=...; security_authentication=...",
   "url": "https://opensearch-dashboard.e1-us-east-azure.example.com",
+  "cluster": "prod-azure-us-cdp",
   "updated_at": "2026-02-07T14:00:00+00:00"
 }
 ```
@@ -285,6 +315,8 @@ opensearch-agent/
 | `opensearch_get_mappings` | Get field names/types from a sample document |
 | `opensearch_aggregate` | Run aggregation queries (counts, terms, histograms) |
 | `opensearch_cluster_health` | Basic cluster health info |
+| `opensearch_switch_cluster` | Switch to a different cluster on-the-fly via headless SSO (no restart needed) |
+| `opensearch_get_active_cluster` | Get the currently active cluster name, URL, and cookie age |
 
 ### opensearch_search Parameters
 
@@ -312,13 +344,26 @@ opensearch-agent/
 ```
 
 ### Cookie Refresh Flow
-1. **Automatic**: On 401, server launches headless Playwright → SSO → cookies.json → retry
-2. **Manual fallback**: If SSO session expired, user runs `./get-cookies.py <cluster>` → browser opens → login → cookies.json written → no restart needed
-3. **Legacy**: Cookie in `.mcp.json` env var (requires restart, used as fallback)
+1. **Automatic**: On 401, server launches async headless Playwright → SSO → cookies.json → retry
+2. **Cluster switch**: `opensearch_switch_cluster` tool → headless Playwright for target cluster → cookies.json + .mcp.json updated → no restart needed
+3. **Manual fallback**: If SSO session expired, user runs `./get-cookies.py <cluster>` → browser opens → login → cookies.json written → no restart needed
+4. **Legacy**: Cookie in `.mcp.json` env var (requires restart, used as fallback)
+
+### Debugging Cookie Refresh
+Server writes debug logs to `opensearch-mcp-wrapper/server.log` with timestamps. Check this file to diagnose refresh failures — it shows page URLs, cookie polling progress, and error details.
+
+### Phase 9: Dynamic Cluster Switching
+- Added `opensearch_switch_cluster` and `opensearch_get_active_cluster` MCP tools
+- Extracted cluster registry to shared `clusters.py` module (imported by both `server.py` and `get-cookies.py`)
+- Made `OPENSEARCH_URL` dynamic — read from `cookies.json` on every request, not just at startup
+- Added `cluster` field to `cookies.json` to track which cluster is active
+- `opensearch_switch_cluster` fetches cookies via headless Playwright, saves to `cookies.json`, updates `.mcp.json`
+- Fixed critical bug: Playwright sync API cannot run inside asyncio event loop — switched to `async_playwright`
+- Fixed scoping bug: `e` (exception var) not accessible outside `except` block in Python 3
 
 ## TODO / Next Steps
 
 - [ ] Add support for PPL (Piped Processing Language) query support
-- [ ] Add a tool to switch between clusters without running external script
+- [x] ~~Add a tool to switch between clusters without running external script~~ → `opensearch_switch_cluster`
 - [ ] Consider adding log tail / live streaming capability
 - [ ] Explore using service account tokens instead of browser cookies for non-interactive auth
