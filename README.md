@@ -44,9 +44,28 @@ There is no proxy or standalone OpenSearch server involved.
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - Access to an OpenSearch Dashboards instance with OIDC/Azure AD auth
 
-## Setup
+## Quick Setup
 
-### 1. Create virtual environment and install dependencies
+**TL;DR:** Run the initialization script to set everything up automatically:
+
+```bash
+./init.sh
+```
+
+This script will:
+- ✓ Check Python version (requires 3.10+)
+- ✓ Create a virtual environment at `opensearch-mcp-wrapper/venv/`
+- ✓ Install all dependencies (mcp, httpx, playwright)
+- ✓ Install Chromium browser (for cookie auto-refresh)
+- ✓ Generate `.mcp.json` with correct absolute paths
+- ✓ Verify the setup
+
+### Manual Setup (if needed)
+
+<details>
+<summary>Click to expand manual setup steps</summary>
+
+#### 1. Create virtual environment and install dependencies
 
 ```bash
 cd opensearch-mcp-wrapper
@@ -55,36 +74,22 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Install Playwright (for cookie auto-refresh)
+#### 2. Install Playwright (for cookie auto-refresh)
 
 ```bash
 pip install playwright
 playwright install chromium
 ```
 
-### 3. Get initial cookies
-
-```bash
-# List available clusters
-./get-cookies.py --list
-
-# Fetch cookies for a cluster (opens browser for SSO login)
-./get-cookies.py prod-azure-us-cdp
-```
-
-This writes `cookies.json` which the server reads on every request.
-
-### 4. Configure Claude Code
-
-The `.mcp.json` in the project root is already configured. Update the paths and `OPENSEARCH_URL` if needed:
+#### 3. Update `.mcp.json` with correct paths
 
 ```json
 {
   "mcpServers": {
     "opensearch": {
       "type": "stdio",
-      "command": "<path-to>/opensearch-mcp-wrapper/venv/bin/python",
-      "args": ["<path-to>/opensearch-mcp-wrapper/server.py"],
+      "command": "/absolute/path/to/opensearch-mcp-wrapper/venv/bin/python",
+      "args": ["/absolute/path/to/opensearch-mcp-wrapper/server.py"],
       "env": {
         "OPENSEARCH_URL": "https://your-opensearch-dashboard-url",
         "OPENSEARCH_VERIFY_SSL": "true"
@@ -94,10 +99,27 @@ The `.mcp.json` in the project root is already configured. Update the paths and 
 }
 ```
 
-### 5. Start Claude Code
+</details>
+
+### Get Initial Cookies
+
+After running `init.sh`, fetch cookies for your cluster:
 
 ```bash
-cd opensearch-agent
+cd opensearch-mcp-wrapper
+
+# List available clusters
+./get-cookies.py --list
+
+# Fetch cookies for a cluster (opens browser for SSO login)
+./get-cookies.py prod-azure-us-cdp
+```
+
+This writes `cookies.json` which the server reads on every request.
+
+### Start Claude Code
+
+```bash
 claude
 ```
 
@@ -144,21 +166,25 @@ This opens a browser for interactive login. After login, cookies are saved — *
 
 ```
 opensearch-agent/
-├── .mcp.json                          # MCP server config (project-scope)
+├── init.sh                            # 🚀 Setup automation script (run this first!)
+├── .mcp.json                          # MCP server config (auto-generated, gitignored)
+├── .gitignore                         # Ignores venv/, cookies, logs, etc.
+├── README.md                          # This file
+├── CLAUDE.md                          # Detailed knowledge base & learnings
 ├── .claude/
 │   └── skills/
 │       └── opensearch/
 │           └── SKILL.md               # Claude skill for query patterns
-├── KNOWLEDGE.md                       # Detailed knowledge base & learnings
-├── README.md                          # This file
 └── opensearch-mcp-wrapper/
     ├── server.py                      # MCP server (cookie auth, auto-refresh, context optimization)
+    ├── clusters.py                    # Shared cluster registry
     ├── get-cookies.py                 # Playwright-based cookie fetcher (multi-cluster SSO)
-    ├── cookies.json                   # Auto-managed cookie store
+    ├── cookies.json                   # Auto-managed cookie store (gitignored)
+    ├── server.log                     # Debug logs (gitignored)
     ├── requirements.txt               # Python dependencies
     ├── pyproject.toml                 # Project metadata
-    ├── .browser-data/                 # Playwright persistent browser profile
-    └── venv/                          # Python virtual environment
+    ├── .browser-data/                 # Playwright persistent browser profile (gitignored)
+    └── venv/                          # Python virtual environment (gitignored)
 ```
 
 ## Context Optimization
