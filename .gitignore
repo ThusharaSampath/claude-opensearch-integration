@@ -1,2 +1,4 @@
 opensearch-mcp-wrapper/.browser-data/
 opensearch-mcp-wrapper/__pycache__/
+opensearch-mcp-wrapper/server.log
+opensearch-mcp-wrapper/cookies.json
