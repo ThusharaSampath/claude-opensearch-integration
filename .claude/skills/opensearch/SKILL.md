@@ -200,48 +200,16 @@ opensearch_search_raw(
 
 ## Cluster Map
 
-When the user refers to a cluster by short name, map it to the correct identifier below.
+**IMPORTANT**: When the user mentions a cluster, first read `opensearch-mcp/clusters.py` to get the available clusters and their short names. The cluster registry is defined in the `CLUSTERS` dictionary in that file.
 
-### Development
-| Short name | Cluster | URL |
-|---|---|---|
-| `dev-aws-eu-cp` | Dev AWS EU CP | https://opensearch-cp.dv.eu.example.com/ |
-| `dev-aws-eu-cdp` | Dev AWS EU CDP | https://opensearch.e1-eu-central-cdp.dv.example.com |
-| `dev-azure-us-cp` | Dev Azure US CP | **No OpenSearch** (use Log Analytics Workspace) |
-| `dev-azure-us-cdp` | Dev Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.preview-dv.example.com |
-| `dev-azure-eu-cdp` | Dev Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.preview-dv.example.com |
-| `dev-azure-pdp-userdev` | Dev Azure PDP (Userdev) | https://opensearch-dashboard.dev.example-dev.example.com |
-| `dev-azure-pdp-userprod` | Dev Azure PDP (Userprod) | https://opensearch-dashboard.example-dev.example.com |
-| `dev-aws-pdp` | Dev AWS PDP | https://opensearch-dashboard.dv.dap.example.com/ |
-| `dev-onprem-cp` | Dev OnPrem CP | https://opensearch-dashboard-cp.preview-dv.example.com |
-| `dev-onprem-dp` | Dev OnPrem DP | https://opensearch-dashboard.e1-us-east-azure.preview-dv.example.com |
-| `dev-onprem-e2e-pdp` | Dev OnPrem e2e PDP | https://opensearch-dashboard.nonprod.e2e-dv.preview-dv.example.com |
-
-### Staging
-| Short name | Cluster | URL |
-|---|---|---|
-| `stg-aws-eu-cp` | Staging AWS EU CP | https://opensearch-cp.stv.eu.example.com |
-| `stg-aws-eu-cdp` | Staging AWS EU CDP | https://opensearch.e1-eu-west-cdp.st.example.com |
-| `stg-azure-us-cp` | Staging Azure US CP | **No OpenSearch** (use Log Analytics Workspace) |
-| `stg-azure-us-cdp` | Staging Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.st.example.com |
-| `stg-azure-eu-cdp` | Staging Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.st.example.com |
-| `stg-azure-pdp-userdev` | Staging Azure PDP (Userdev) | https://opensearch-dashboard.dev.example-stg.example.com/ |
-| `stg-azure-pdp-userprod` | Staging Azure PDP (Userprod) | https://opensearch-dashboard.example-stg.example.com/ |
-| `stg-onprem-e2e-pdp` | Staging OnPrem e2e PDP | https://opensearch-dashboard.nonprod.e2e-stg.st.example.com |
-
-### Production
-| Short name | Cluster | URL |
-|---|---|---|
-| `prod-aws-eu-cp` | Prod AWS EU CP | https://opensearch-cp.eu.example.com |
-| `prod-azure-us-cp` | Prod Azure US CP | **No OpenSearch** (use Log Analytics Workspace) |
-| `prod-aws-eu-cdp` | Prod AWS EU CDP | https://opensearch.e1-eu-west-cdp.example.com |
-| `prod-azure-us-cdp` | Prod Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.example.com |
-| `prod-azure-eu-cdp` | Prod Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.example.com |
-| `prod-tenant-a-userprod` | Prod Tenant-A UserProd PDP | https://opensearch-dashboard.prod.tenant-a.example.com |
-| `prod-tenant-a-nonprod-onprem` | Prod Tenant-A Non-Prod OnPrem PDP | https://opensearch-dashboard.nonprod.tenant-a.example.com (requires FortiClient VPN) |
-| `prod-tenant-b` | Prod Tenant-B UserNonProd PDP | https://opensearch-dashboard.dv.tb.example.com |
-| `prod-tenant-c` | Prod Tenant-C UserProd PDP | https://opensearch-dashboard.prod.tc.example.com |
-| `prod-tenant-d` | Prod Tenant-D UserProd PDP | https://opensearch-dashboard.prod.td.example.com |
+### Example Cluster Format
+Users configure their clusters in `opensearch-mcp/clusters.py`. Example entries:
+```python
+CLUSTERS = {
+    "dev-aws-eu-cluster": ("https://opensearch-dashboard.dev.example.com", "Dev AWS EU Cluster"),
+    "prod-aws-cluster": ("https://opensearch-dashboard.prod.example.com", "Prod AWS Cluster"),
+}
+```
 
 ### Common aliases
 When the user says any of these, map to the corresponding cluster:

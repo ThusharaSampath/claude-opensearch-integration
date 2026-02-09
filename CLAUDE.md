@@ -216,46 +216,22 @@ When using curl, pass cookies with the `-b` flag, not as a `-H 'Cookie: ...'` he
 
 ## Cluster Registry
 
-### Development
-| Short Name | Cluster | URL |
-|---|---|---|
-| `dev-aws-eu-cp` | Dev AWS EU CP | https://opensearch-cp.dv.eu.example.com/ |
-| `dev-aws-eu-cdp` | Dev AWS EU CDP | https://opensearch.e1-eu-central-cdp.dv.example.com |
-| `dev-azure-us-cp` | Dev Azure US CP | **No OpenSearch** (Log Analytics Workspace) |
-| `dev-azure-us-cdp` | Dev Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.preview-dv.example.com |
-| `dev-azure-eu-cdp` | Dev Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.preview-dv.example.com |
-| `dev-azure-pdp-userdev` | Dev Azure PDP (Userdev) | https://opensearch-dashboard.dev.example-dev.example.com |
-| `dev-azure-pdp-userprod` | Dev Azure PDP (Userprod) | https://opensearch-dashboard.example-dev.example.com |
-| `dev-aws-pdp` | Dev AWS PDP | https://opensearch-dashboard.dv.dap.example.com/ |
-| `dev-onprem-cp` | Dev OnPrem CP | https://opensearch-dashboard-cp.preview-dv.example.com |
-| `dev-onprem-dp` | Dev OnPrem DP | https://opensearch-dashboard.e1-us-east-azure.preview-dv.example.com |
-| `dev-onprem-e2e-pdp` | Dev OnPrem e2e PDP | https://opensearch-dashboard.nonprod.e2e-dv.preview-dv.example.com |
+Cluster URLs are configured in `opensearch-mcp/clusters.py`. Edit this file to add your OpenSearch cluster URLs.
 
-### Staging
-| Short Name | Cluster | URL |
-|---|---|---|
-| `stg-aws-eu-cp` | Staging AWS EU CP | https://opensearch-cp.stv.eu.example.com |
-| `stg-aws-eu-cdp` | Staging AWS EU CDP | https://opensearch.e1-eu-west-cdp.st.example.com |
-| `stg-azure-us-cp` | Staging Azure US CP | **No OpenSearch** (Log Analytics Workspace) |
-| `stg-azure-us-cdp` | Staging Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.st.example.com |
-| `stg-azure-eu-cdp` | Staging Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.st.example.com |
-| `stg-azure-pdp-userdev` | Staging Azure PDP (Userdev) | https://opensearch-dashboard.dev.example-stg.example.com/ |
-| `stg-azure-pdp-userprod` | Staging Azure PDP (Userprod) | https://opensearch-dashboard.example-stg.example.com/ |
-| `stg-onprem-e2e-pdp` | Staging OnPrem e2e PDP | https://opensearch-dashboard.nonprod.e2e-stg.st.example.com |
+### Format
 
-### Production
-| Short Name | Cluster | URL |
-|---|---|---|
-| `prod-aws-eu-cp` | Prod AWS EU CP | https://opensearch-cp.eu.example.com |
-| `prod-azure-us-cp` | Prod Azure US CP | **No OpenSearch** (Log Analytics Workspace) |
-| `prod-aws-eu-cdp` | Prod AWS EU CDP | https://opensearch.e1-eu-west-cdp.example.com |
-| `prod-azure-us-cdp` | Prod Azure US CDP | https://opensearch-dashboard.e1-us-east-azure.example.com |
-| `prod-azure-eu-cdp` | Prod Azure EU CDP | https://opensearch-dashboard.e1-eu-north-azure.example.com |
-| `prod-tenant-a-userprod` | Prod Tenant-A UserProd PDP | https://opensearch-dashboard.prod.tenant-a.example.com |
-| `prod-tenant-a-nonprod-onprem` | Prod Tenant-A Non-Prod OnPrem PDP | https://opensearch-dashboard.nonprod.tenant-a.example.com (requires FortiClient VPN) |
-| `prod-tenant-b` | Prod Tenant-B UserNonProd PDP | https://opensearch-dashboard.dv.tb.example.com |
-| `prod-tenant-c` | Prod Tenant-C UserProd PDP | https://opensearch-dashboard.prod.tc.example.com |
-| `prod-tenant-d` | Prod Tenant-D UserProd PDP | https://opensearch-dashboard.prod.td.example.com |
+The `CLUSTERS` dictionary maps short names to `(url, description)` tuples:
+
+```python
+CLUSTERS = {
+    "dev-aws-eu-cluster":    ("https://opensearch-dashboard.dev.example.com", "Dev AWS EU Cluster"),
+    "stg-azure-us-cluster":  ("https://opensearch-dashboard.staging-us.example.com", "Staging Azure US Cluster"),
+    "prod-aws-eu-cluster":   ("https://opensearch-dashboard.prod.example.com", "Prod AWS EU Cluster"),
+    "prod-special-cluster":  (None, "Prod Special Cluster — No OpenSearch (alternative logging solution)"),
+}
+```
+
+Use `None` as the URL for clusters without OpenSearch.
 
 ## Cluster Details
 
@@ -311,7 +287,7 @@ opensearch-agent/
       "command": ".../opensearch-mcp/venv/bin/python",
       "args": [".../opensearch-mcp/server.py"],
       "env": {
-        "OPENSEARCH_URL": "https://opensearch-dashboard.e1-us-east-azure.example.com",
+        "OPENSEARCH_URL": "https://opensearch-dashboard.example.com",
         "OPENSEARCH_COOKIE": "<fallback cookie, used if cookies.json missing>",
         "OPENSEARCH_VERIFY_SSL": "true"
       }
@@ -324,8 +300,8 @@ opensearch-agent/
 ```json
 {
   "cookie": "security_authentication_oidc1=...; security_authentication=...",
-  "url": "https://opensearch-dashboard.e1-us-east-azure.example.com",
-  "cluster": "prod-azure-us-cdp",
+  "url": "https://opensearch-dashboard.example.com",
+  "cluster": "prod-cluster-name",
   "updated_at": "2026-02-07T14:00:00+00:00"
 }
 ```
@@ -361,11 +337,11 @@ opensearch-agent/
 
 ### get-cookies.py Usage
 ```bash
-./get-cookies.py prod-azure-us-cdp       # Fetch cookies for a cluster
-./get-cookies.py prod-azure-us-cdp --print  # Print cookies only
+./get-cookies.py prod-aws-eu-cluster       # Fetch cookies for a cluster
+./get-cookies.py prod-aws-eu-cluster --print  # Print cookies only
 ./get-cookies.py --list                    # List all clusters
-./get-cookies.py --url https://custom.url  # Custom URL
-./get-cookies.py prod-azure-us-cdp --headless  # Headless (if SSO cached)
+./get-cookies.py --url https://opensearch-dashboard.example.com  # Custom URL
+./get-cookies.py prod-aws-eu-cluster --headless  # Headless (if SSO cached)
 ```
 
 ### Cookie Refresh Flow

@@ -73,8 +73,8 @@ fi
 # Step 4: Generate .mcp.json with correct paths
 echo -e "${YELLOW}[4/5] Generating .mcp.json configuration...${NC}"
 
-# Default cluster URL (user can change this)
-DEFAULT_CLUSTER_URL="https://opensearch-dashboard.e1-us-east-azure.example.com"
+# Default cluster URL (user can change this after setup)
+DEFAULT_CLUSTER_URL="https://opensearch-dashboard.example.com"
 
 cat > "${MCP_JSON}" <<EOF
 {
@@ -130,24 +130,26 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo ""
-echo -e "  ${YELLOW}1.${NC} Navigate to the MCP directory and activate virtual environment:"
+echo -e "  ${YELLOW}1.${NC} Add your cluster URLs to ${MCP_DIR}/clusters.py"
+echo ""
+echo -e "  ${YELLOW}2.${NC} Navigate to the MCP directory and activate virtual environment:"
 echo -e "     ${GREEN}cd ${MCP_DIR}${NC}"
 echo -e "     ${GREEN}source venv/bin/activate${NC}"
 echo ""
-echo -e "  ${YELLOW}2.${NC} List available OpenSearch clusters:"
+echo -e "  ${YELLOW}3.${NC} List available OpenSearch clusters:"
 echo -e "     ${GREEN}./get-cookies.py --list${NC}"
 echo ""
-echo -e "  ${YELLOW}3.${NC} Fetch cookies for your desired cluster (opens browser for login):"
-echo -e "     ${GREEN}./get-cookies.py prod-azure-us-cdp${NC}"
+echo -e "  ${YELLOW}4.${NC} Fetch cookies for your desired cluster (opens browser for login):"
+echo -e "     ${GREEN}./get-cookies.py <cluster-short-name>${NC}"
 echo -e "     (This is one-time setup. MCP will auto-refresh cookies after this.)"
 echo ""
-echo -e "  ${YELLOW}4.${NC} Deactivate venv and go back to the project root:"
+echo -e "  ${YELLOW}5.${NC} Deactivate venv and go back to the project root:"
 echo -e "     ${GREEN}deactivate${NC}"
 echo -e "     ${GREEN}cd ${PROJECT_ROOT}${NC}"
 echo ""
-echo -e "  ${YELLOW}5.${NC} Start Claude Code:"
+echo -e "  ${YELLOW}6.${NC} Start Claude Code:"
 echo -e "     ${GREEN}claude${NC}"
 echo ""
-echo -e "  ${YELLOW}6.${NC} Try querying logs:"
+echo -e "  ${YELLOW}7.${NC} Try querying logs:"
 echo -e "     ${BLUE}\"Search for errors in the last 10 minutes\"${NC}"
 echo ""
