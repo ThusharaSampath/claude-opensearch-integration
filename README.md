@@ -13,7 +13,7 @@ A custom [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server
 The MCP server makes direct HTTP calls to the same internal API endpoint (`/internal/search/opensearch-with-long-numerals`) that the Dashboards UI uses, authenticated with browser session cookies.
 
 ```
-Claude Code → MCP (stdio) → server.py → HTTP POST → OpenSearch Dashboards → OpenSearch
+Claude Code → MCP (stdio) → server.py → HTTP POST → OpenSearch Dashboards APIs → OpenSearch
 ```
 
 There is no proxy or standalone OpenSearch server involved.
@@ -24,7 +24,7 @@ There is no proxy or standalone OpenSearch server involved.
 - **Auto cookie refresh** — on 401, launches headless Playwright to re-authenticate via cached SSO session
 - **Context optimization** — auto-prune, field filtering, summary-only mode, per-hit truncation, and 15KB response cap to keep Claude's context window lean
 - **Response metadata** — every response includes `_meta.applied_operations` so Claude knows what was filtered/truncated
-- **Multi-cluster support** — 29 clusters across Dev, Staging, and Production environments
+- **Multi-cluster support** — Support any number of clusters
 - **Claude skill** — built-in skill teaching Claude cost-conscious query patterns
 
 ## Available Tools
@@ -182,7 +182,6 @@ opensearch-agent/
     ├── cookies.json                   # Auto-managed cookie store (gitignored)
     ├── server.log                     # Debug logs (gitignored)
     ├── requirements.txt               # Python dependencies
-    ├── pyproject.toml                 # Project metadata
     ├── .browser-data/                 # Playwright persistent browser profile (gitignored)
     └── venv/                          # Python virtual environment (gitignored)
 ```
@@ -198,15 +197,6 @@ The server optimizes responses to minimize Claude's context window usage:
 | `fields` | Return only specified fields (saves 70-80% context) |
 | `max_chars_per_hit` | Truncates individual hits exceeding 2000 chars |
 | Response cap | Overall response capped at 15KB |
-
-## Supported Clusters
-
-29 clusters across Development, Staging, and Production. See [KNOWLEDGE.md](KNOWLEDGE.md#cluster-registry) for the full registry.
-
-Common aliases:
-- `prod` → `prod-azure-us-cdp`
-- `dev` → `dev-azure-us-cdp`
-- `stg` → `stg-azure-us-cdp`
 
 ## Dependencies
 
