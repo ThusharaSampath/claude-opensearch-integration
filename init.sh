@@ -13,8 +13,8 @@ NC='\033[0m' # No Color
 
 # Get the absolute path to the project root (where this script lives)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MCP_WRAPPER_DIR="${PROJECT_ROOT}/opensearch-mcp"
-VENV_DIR="${MCP_WRAPPER_DIR}/venv"
+MCP_DIR="${PROJECT_ROOT}/opensearch-mcp"
+VENV_DIR="${MCP_DIR}/venv"
 PYTHON_BIN="${VENV_DIR}/bin/python"
 PIP_BIN="${VENV_DIR}/bin/pip"
 MCP_JSON="${PROJECT_ROOT}/.mcp.json"
@@ -24,7 +24,7 @@ echo -e "${BLUE}║  OpenSearch MCP Agent - Initialization Script               
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${GREEN}Project root:${NC} ${PROJECT_ROOT}"
-echo -e "${GREEN}MCP wrapper:${NC} ${MCP_WRAPPER_DIR}"
+echo -e "${GREEN}MCP:${NC} ${MCP_DIR}"
 echo ""
 
 # Step 1: Check Python version
@@ -49,14 +49,14 @@ fi
 
 # Step 3: Install/upgrade dependencies
 echo -e "${YELLOW}[3/5] Installing Python dependencies...${NC}"
-if [ ! -f "${MCP_WRAPPER_DIR}/requirements.txt" ]; then
-    echo -e "${RED}Error: requirements.txt not found at ${MCP_WRAPPER_DIR}/requirements.txt${NC}"
+if [ ! -f "${MCP_DIR}/requirements.txt" ]; then
+    echo -e "${RED}Error: requirements.txt not found at ${MCP_DIR}/requirements.txt${NC}"
     exit 1
 fi
 
 echo "       Installing: mcp, httpx"
 "${PIP_BIN}" install -q --upgrade pip
-"${PIP_BIN}" install -q -r "${MCP_WRAPPER_DIR}/requirements.txt"
+"${PIP_BIN}" install -q -r "${MCP_DIR}/requirements.txt"
 echo -e "${GREEN}       ✓ Core dependencies installed${NC}"
 
 # Check if playwright is installed, if not, prompt user
@@ -83,7 +83,7 @@ cat > "${MCP_JSON}" <<EOF
       "type": "stdio",
       "command": "${PYTHON_BIN}",
       "args": [
-        "${MCP_WRAPPER_DIR}/server.py"
+        "${MCP_DIR}/server.py"
       ],
       "env": {
         "OPENSEARCH_URL": "${DEFAULT_CLUSTER_URL}",
@@ -101,25 +101,25 @@ echo "       Default cluster: ${DEFAULT_CLUSTER_URL}"
 echo -e "${YELLOW}[5/5] Verifying setup...${NC}"
 
 # Check if server.py exists
-if [ ! -f "${MCP_WRAPPER_DIR}/server.py" ]; then
-    echo -e "${RED}       ✗ server.py not found at ${MCP_WRAPPER_DIR}/server.py${NC}"
+if [ ! -f "${MCP_DIR}/server.py" ]; then
+    echo -e "${RED}       ✗ server.py not found at ${MCP_DIR}/server.py${NC}"
     exit 1
 fi
 echo -e "${GREEN}       ✓ server.py found${NC}"
 
 # Check if get-cookies.py exists and is executable
-if [ ! -f "${MCP_WRAPPER_DIR}/get-cookies.py" ]; then
+if [ ! -f "${MCP_DIR}/get-cookies.py" ]; then
     echo -e "${RED}       ✗ get-cookies.py not found${NC}"
     exit 1
 fi
-if [ ! -x "${MCP_WRAPPER_DIR}/get-cookies.py" ]; then
+if [ ! -x "${MCP_DIR}/get-cookies.py" ]; then
     echo "       Making get-cookies.py executable..."
-    chmod +x "${MCP_WRAPPER_DIR}/get-cookies.py"
+    chmod +x "${MCP_DIR}/get-cookies.py"
 fi
 echo -e "${GREEN}       ✓ get-cookies.py found and executable${NC}"
 
 # Check if clusters.py exists
-if [ ! -f "${MCP_WRAPPER_DIR}/clusters.py" ]; then
+if [ ! -f "${MCP_DIR}/clusters.py" ]; then
     echo -e "${YELLOW}       ⚠ clusters.py not found (needed for multi-cluster support)${NC}"
 fi
 
@@ -130,8 +130,8 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo ""
-echo -e "  ${YELLOW}1.${NC} Navigate to the MCP wrapper directory and activate virtual environment:"
-echo -e "     ${GREEN}cd ${MCP_WRAPPER_DIR}${NC}"
+echo -e "  ${YELLOW}1.${NC} Navigate to the MCP directory and activate virtual environment:"
+echo -e "     ${GREEN}cd ${MCP_DIR}${NC}"
 echo -e "     ${GREEN}source venv/bin/activate${NC}"
 echo ""
 echo -e "  ${YELLOW}2.${NC} List available OpenSearch clusters:"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OpenSearch MCP Server Wrapper with Cookie Authentication
+OpenSearch MCP Server with Cookie Authentication
 
 This MCP server wraps OpenSearch Dashboards API calls with session cookie authentication,
 enabling Claude to query OpenSearch clusters that use OpenID/OAuth authentication.

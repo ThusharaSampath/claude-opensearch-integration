@@ -1,4 +1,4 @@
-# OpenSearch MCP Wrapper - Knowledge Base & Learnings
+# OpenSearch MCP - Knowledge Base & Learnings
 
 ## Problem Statement
 
@@ -10,7 +10,7 @@ We need to query OpenSearch logs from Claude Code, but:
 
 ## Solution Architecture
 
-A custom MCP server wrapper (`server.py`) that:
+A custom MCP server (`server.py`) that:
 1. Authenticates using browser session cookies (auto-refreshed or manually extracted)
 2. Uses the **same internal API endpoint** that the Dashboards UI uses
 3. Exposes tools for Claude Code to search, aggregate, and inspect OpenSearch data
