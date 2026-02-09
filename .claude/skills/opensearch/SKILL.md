@@ -268,7 +268,7 @@ This automatically fetches cookies via headless SSO and switches all subsequent 
 
 If the tool returns an error (SSO session expired), instruct the user to run:
 ```
-cd /path/to/opensearch-agent/opensearch-mcp-wrapper
+cd /path/to/opensearch-agent/opensearch-mcp
 ./get-cookies.py <cluster-short-name>
 ```
 This opens a browser for manual login. After login, retry — no restart needed.
@@ -297,7 +297,7 @@ The server returns a structured error with `action_required` and a `command` to 
 The OpenSearch cookies have expired and automatic refresh failed (SSO session expired).
 To fix, run:
 
-  cd /path/to/opensearch-agent/opensearch-mcp-wrapper
+  cd /path/to/opensearch-agent/opensearch-mcp
   ./get-cookies.py <cluster-name>
 
 This opens a browser for you to log in. After login completes, cookies are

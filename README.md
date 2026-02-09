@@ -54,7 +54,7 @@ There is no proxy or standalone OpenSearch server involved.
 
 This script will:
 - ✓ Check Python version (requires 3.10+)
-- ✓ Create a virtual environment at `opensearch-mcp-wrapper/venv/`
+- ✓ Create a virtual environment at `opensearch-mcp/venv/`
 - ✓ Install all dependencies (mcp, httpx, playwright)
 - ✓ Install Chromium browser (for cookie auto-refresh)
 - ✓ Generate `.mcp.json` with correct absolute paths
@@ -68,7 +68,7 @@ This script will:
 #### 1. Create virtual environment and install dependencies
 
 ```bash
-cd opensearch-mcp-wrapper
+cd opensearch-mcp
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -88,8 +88,8 @@ playwright install chromium
   "mcpServers": {
     "opensearch": {
       "type": "stdio",
-      "command": "/absolute/path/to/opensearch-mcp-wrapper/venv/bin/python",
-      "args": ["/absolute/path/to/opensearch-mcp-wrapper/server.py"],
+      "command": "/absolute/path/to/opensearch-mcp/venv/bin/python",
+      "args": ["/absolute/path/to/opensearch-mcp/server.py"],
       "env": {
         "OPENSEARCH_URL": "https://your-opensearch-dashboard-url",
         "OPENSEARCH_VERIFY_SSL": "true"
@@ -106,7 +106,7 @@ playwright install chromium
 After running `init.sh`, fetch cookies for your cluster:
 
 ```bash
-cd opensearch-mcp-wrapper
+cd opensearch-mcp
 
 # List available clusters
 ./get-cookies.py --list
@@ -149,7 +149,7 @@ When cookies expire (401), the server automatically:
 If the SSO session itself has expired:
 
 ```bash
-cd opensearch-mcp-wrapper
+cd opensearch-mcp
 ./get-cookies.py <cluster-short-name>
 ```
 
@@ -175,7 +175,7 @@ opensearch-agent/
 │   └── skills/
 │       └── opensearch/
 │           └── SKILL.md               # Claude skill for query patterns
-└── opensearch-mcp-wrapper/
+└── opensearch-mcp/
     ├── server.py                      # MCP server (cookie auth, auto-refresh, context optimization)
     ├── clusters.py                    # Shared cluster registry
     ├── get-cookies.py                 # Playwright-based cookie fetcher (multi-cluster SSO)

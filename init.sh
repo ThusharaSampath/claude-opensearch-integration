@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Get the absolute path to the project root (where this script lives)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MCP_WRAPPER_DIR="${PROJECT_ROOT}/opensearch-mcp-wrapper"
+MCP_WRAPPER_DIR="${PROJECT_ROOT}/opensearch-mcp"
 VENV_DIR="${MCP_WRAPPER_DIR}/venv"
 PYTHON_BIN="${VENV_DIR}/bin/python"
 PIP_BIN="${VENV_DIR}/bin/pip"

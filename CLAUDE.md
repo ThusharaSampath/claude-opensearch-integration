@@ -37,7 +37,7 @@ Claude Code → MCP protocol (stdio) → server.py → HTTP POST → OpenSearch 
 - Identified OSD version: `2.18.0`
 
 ### Phase 2: MCP Server Development
-- Created a Python MCP server at `opensearch-mcp-wrapper/server.py`
+- Created a Python MCP server at `opensearch-mcp/server.py`
 - Set up a virtual environment with `mcp`, `httpx`, and `playwright` dependencies
 - Iteratively tested endpoints until finding the correct internal search endpoint
 
@@ -288,7 +288,7 @@ opensearch-agent/
 │   └── skills/
 │       └── opensearch/
 │           └── SKILL.md                # Claude skill for efficient OpenSearch querying
-└── opensearch-mcp-wrapper/
+└── opensearch-mcp/
     ├── server.py                       # MCP server with cookie auth, auto-refresh, cluster switching, context optimization
     ├── clusters.py                     # Shared cluster registry (imported by server.py and get-cookies.py)
     ├── get-cookies.py                  # Playwright-based cookie fetcher (SSO, multi-cluster)
@@ -308,8 +308,8 @@ opensearch-agent/
   "mcpServers": {
     "opensearch": {
       "type": "stdio",
-      "command": ".../opensearch-mcp-wrapper/venv/bin/python",
-      "args": [".../opensearch-mcp-wrapper/server.py"],
+      "command": ".../opensearch-mcp/venv/bin/python",
+      "args": [".../opensearch-mcp/server.py"],
       "env": {
         "OPENSEARCH_URL": "https://opensearch-dashboard.e1-us-east-azure.example.com",
         "OPENSEARCH_COOKIE": "<fallback cookie, used if cookies.json missing>",
@@ -375,7 +375,7 @@ opensearch-agent/
 4. **Legacy**: Cookie in `.mcp.json` env var (requires restart, used as fallback)
 
 ### Debugging Cookie Refresh
-Server writes debug logs to `opensearch-mcp-wrapper/server.log` with timestamps. Check this file to diagnose refresh failures — it shows page URLs, cookie polling progress, and error details.
+Server writes debug logs to `opensearch-mcp/server.log` with timestamps. Check this file to diagnose refresh failures — it shows page URLs, cookie polling progress, and error details.
 
 ### Phase 9: Dynamic Cluster Switching
 - Added `opensearch_switch_cluster` and `opensearch_get_active_cluster` MCP tools

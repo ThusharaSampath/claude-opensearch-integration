@@ -13,7 +13,7 @@ This server makes direct HTTP calls to the Dashboards internal API (`/internal/s
 ### 1. Create Virtual Environment
 
 ```bash
-cd opensearch-mcp-wrapper
+cd opensearch-mcp
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -53,8 +53,8 @@ Add to `.mcp.json` in your project root:
   "mcpServers": {
     "opensearch": {
       "type": "stdio",
-      "command": "<path-to>/opensearch-mcp-wrapper/venv/bin/python",
-      "args": ["<path-to>/opensearch-mcp-wrapper/server.py"],
+      "command": "<path-to>/opensearch-mcp/venv/bin/python",
+      "args": ["<path-to>/opensearch-mcp/server.py"],
       "env": {
         "OPENSEARCH_URL": "https://your-opensearch-dashboard-url",
         "OPENSEARCH_COOKIE": "<fallback cookie, used only if cookies.json is missing>",
