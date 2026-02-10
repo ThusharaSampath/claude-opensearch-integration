@@ -216,7 +216,7 @@ When using curl, pass cookies with the `-b` flag, not as a `-H 'Cookie: ...'` he
 
 ## Cluster Registry
 
-Cluster URLs are configured in `opensearch-mcp/clusters.py`. Edit this file to add your OpenSearch cluster URLs.
+Cluster URLs are configured in `clusters.py`. Edit this file to add your OpenSearch cluster URLs.
 
 ### Format
 
@@ -260,20 +260,18 @@ opensearch-agent/
 ├── .gitignore                          # Ignores venv/, .mcp.json, cookies.json, etc.
 ├── README.md                           # User-facing documentation
 ├── CLAUDE.md                           # This file (project knowledge base & learnings)
-├── .claude/
-│   └── skills/
-│       └── opensearch/
-│           └── SKILL.md                # Claude skill for efficient OpenSearch querying
-└── opensearch-mcp/
-    ├── server.py                       # MCP server with cookie auth, auto-refresh, cluster switching, context optimization
-    ├── clusters.py                     # Shared cluster registry (imported by server.py and get-cookies.py)
-    ├── get-cookies.py                  # Playwright-based cookie fetcher (SSO, multi-cluster)
-    ├── cookies.json                    # Auto-managed cookie store (includes cluster name, read at request time, gitignored)
-    ├── server.log                      # Debug log file (written by server.py for diagnosing refresh issues, gitignored)
-    ├── .browser-data/                  # Playwright persistent browser profile (caches SSO session, gitignored)
-    ├── requirements.txt                # Python dependencies (mcp, httpx, playwright)
-    ├── pyproject.toml                  # Project metadata
-    └── venv/                           # Python virtual environment (created by init.sh, gitignored)
+├── server.py                           # MCP server with cookie auth, auto-refresh, cluster switching, context optimization
+├── clusters.py                         # Shared cluster registry (imported by server.py and get-cookies.py)
+├── get-cookies.py                      # Playwright-based cookie fetcher (SSO, multi-cluster)
+├── requirements.txt                    # Python dependencies (mcp, httpx, playwright)
+├── cookies.json                        # Auto-managed cookie store (includes cluster name, read at request time, gitignored)
+├── server.log                          # Debug log file (written by server.py for diagnosing refresh issues, gitignored)
+├── venv/                               # Python virtual environment (created by init.sh, gitignored)
+├── .browser-data/                      # Playwright persistent browser profile (caches SSO session, gitignored)
+└── .claude/
+    └── skills/
+        └── opensearch/
+            └── SKILL.md                # Claude skill for efficient OpenSearch querying
 ```
 
 ## Configuration
@@ -284,8 +282,8 @@ opensearch-agent/
   "mcpServers": {
     "opensearch": {
       "type": "stdio",
-      "command": ".../opensearch-mcp/venv/bin/python",
-      "args": [".../opensearch-mcp/server.py"],
+      "command": ".../venv/bin/python",
+      "args": [".../server.py"],
       "env": {
         "OPENSEARCH_URL": "https://opensearch-dashboard.example.com",
         "OPENSEARCH_COOKIE": "<fallback cookie, used if cookies.json missing>",
@@ -351,7 +349,7 @@ opensearch-agent/
 4. **Legacy**: Cookie in `.mcp.json` env var (requires restart, used as fallback)
 
 ### Debugging Cookie Refresh
-Server writes debug logs to `opensearch-mcp/server.log` with timestamps. Check this file to diagnose refresh failures — it shows page URLs, cookie polling progress, and error details.
+Server writes debug logs to `server.log` with timestamps. Check this file to diagnose refresh failures — it shows page URLs, cookie polling progress, and error details.
 
 ### Phase 9: Dynamic Cluster Switching
 - Added `opensearch_switch_cluster` and `opensearch_get_active_cluster` MCP tools

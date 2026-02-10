@@ -29,7 +29,7 @@ from clusters import CLUSTERS
 REQUIRED_COOKIES = ["security_authentication", "security_authentication_oidc1"]
 
 # Path to the project .mcp.json
-MCP_JSON_PATH = Path(__file__).parent.parent / ".mcp.json"
+MCP_JSON_PATH = Path(__file__).parent / ".mcp.json"
 
 # Playwright user data dir for persistent browser context (keeps Azure AD session)
 BROWSER_DATA_DIR = Path(__file__).parent / ".browser-data"

@@ -54,7 +54,7 @@ There is no proxy or standalone OpenSearch server involved.
 
 This script will:
 - ✓ Check Python version (requires 3.10+)
-- ✓ Create a virtual environment at `opensearch-mcp/venv/`
+- ✓ Create a virtual environment at `venv/`
 - ✓ Install all dependencies (mcp, httpx, playwright)
 - ✓ Install Chromium browser (for cookie auto-refresh)
 - ✓ Generate `.mcp.json` with correct absolute paths
@@ -62,12 +62,11 @@ This script will:
 
 ### 2. Add your cluster URLs
 
-Edit `opensearch-mcp/clusters.py` and replace the sample URLs with your actual OpenSearch cluster endpoints:
+Edit `clusters.py` and replace the sample URLs with your actual OpenSearch cluster endpoints:
 
 ### 3. Fetch authentication cookies
 
 ```bash
-cd opensearch-mcp
 source venv/bin/activate
 
 # List available clusters (from clusters.py)
@@ -76,9 +75,8 @@ source venv/bin/activate
 # Fetch cookies for your cluster (opens browser for SSO login)
 ./get-cookies.py <cluster-short-name>
 
-# Deactivate venv and return to project root
+# Deactivate venv
 deactivate
-cd ..
 ```
 
 This writes `cookies.json` which the server reads on every request. This is one-time setup — the MCP server will auto-refresh cookies after this.
@@ -99,7 +97,6 @@ Claude will automatically load the MCP server and have access to all OpenSearch 
 #### 1. Create virtual environment and install dependencies
 
 ```bash
-cd opensearch-mcp
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -119,8 +116,8 @@ playwright install chromium
   "mcpServers": {
     "opensearch": {
       "type": "stdio",
-      "command": "/absolute/path/to/opensearch-mcp/venv/bin/python",
-      "args": ["/absolute/path/to/opensearch-mcp/server.py"],
+      "command": "/absolute/path/to/project/venv/bin/python",
+      "args": ["/absolute/path/to/project/server.py"],
       "env": {
         "OPENSEARCH_URL": "https://opensearch-dashboard.example.com",
         "OPENSEARCH_VERIFY_SSL": "true"
@@ -132,7 +129,7 @@ playwright install chromium
 
 #### 4. Configure your clusters
 
-Edit `opensearch-mcp/clusters.py` with your actual cluster URLs.
+Edit `clusters.py` with your actual cluster URLs.
 
 #### 5. Fetch cookies
 
@@ -164,7 +161,6 @@ When cookies expire (401), the server automatically:
 If the SSO session itself has expired:
 
 ```bash
-cd opensearch-mcp
 ./get-cookies.py <cluster-short-name>
 ```
 
@@ -173,11 +169,9 @@ This opens a browser for interactive login. After login, cookies are saved — *
 ### Switching clusters
 
 ```bash
-cd opensearch-mcp
 source venv/bin/activate
 ./get-cookies.py <cluster-short-name>
 deactivate
-cd ..
 # Then restart Claude Code to pick up the new cluster
 ```
 
@@ -190,19 +184,18 @@ opensearch-agent/
 ├── .gitignore                         # Ignores venv/, cookies, logs, etc.
 ├── README.md                          # This file
 ├── CLAUDE.md                          # Detailed knowledge base & learnings
-├── .claude/
-│   └── skills/
-│       └── opensearch/
-│           └── SKILL.md               # Claude skill for query patterns
-└── opensearch-mcp/
-    ├── server.py                      # MCP server (cookie auth, auto-refresh, context optimization)
-    ├── clusters.py                    # Shared cluster registry
-    ├── get-cookies.py                 # Playwright-based cookie fetcher (multi-cluster SSO)
-    ├── cookies.json                   # Auto-managed cookie store (gitignored)
-    ├── server.log                     # Debug logs (gitignored)
-    ├── requirements.txt               # Python dependencies
-    ├── .browser-data/                 # Playwright persistent browser profile (gitignored)
-    └── venv/                          # Python virtual environment (gitignored)
+├── server.py                          # MCP server (cookie auth, auto-refresh, context optimization)
+├── clusters.py                        # Shared cluster registry
+├── get-cookies.py                     # Playwright-based cookie fetcher (multi-cluster SSO)
+├── requirements.txt                   # Python dependencies
+├── cookies.json                       # Auto-managed cookie store (gitignored)
+├── server.log                         # Debug logs (gitignored)
+├── venv/                              # Python virtual environment (gitignored)
+├── .browser-data/                     # Playwright persistent browser profile (gitignored)
+└── .claude/
+    └── skills/
+        └── opensearch/
+            └── SKILL.md               # Claude skill for query patterns
 ```
 
 ## Context Optimization
