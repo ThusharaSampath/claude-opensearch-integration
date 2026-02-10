@@ -11,3 +11,6 @@ venv/
 .mcp.json
 
 clusters_data.txt
+
+# Project knowledge base (local only)
+CLAUDE.md
