@@ -172,7 +172,6 @@ This opens a browser for interactive login. After login, cookies are saved — *
 source venv/bin/activate
 ./get-cookies.py <cluster-short-name>
 deactivate
-# Then restart Claude Code to pick up the new cluster
 ```
 
 ## Project Structure
