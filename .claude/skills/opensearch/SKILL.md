@@ -88,17 +88,66 @@ The query matched more documents than returned. If the user needs broader analys
 ### When you see `hits_truncated`:
 Individual log entries were too large. Use `fields` to pick only the fields you need, or increase `max_chars_per_hit`.
 
-## CRITICAL: Searching the `log` Field
+## CRITICAL: Searching the `log` Field (Cluster-Specific Strategy)
 
-The `log` field in `container-logs-*` is mapped as **keyword** (not analyzed text). This means:
+The `log` field search strategy **depends on the cluster type**:
 
-- **`query_string` with `log:*error*` returns 0 hits** — keyword fields have no tokens to match against
-- **`match_phrase` / `term` on `log` returns 0 hits** — same reason
-- **`wildcard` query works** — it scans the raw stored string
+### OnPrem Clusters (dev-onprem-*, stg-onprem-*, prod-onprem-*)
 
-**Always use `opensearch_search_raw` with `wildcard` when searching inside log content:**
+For **onprem clusters**, use `query_string` with `analyze_wildcard: true` and **quoted wildcard patterns**:
 
-### Search errors in logs
+#### Search errors in logs (OnPrem)
+```json
+opensearch_search_raw(
+  index="container-logs-*",
+  body={
+    "query": {"bool": {"must": [
+      {"query_string": {
+        "query": "log:\"*level*error*\"",
+        "analyze_wildcard": true,
+        "time_zone": "Asia/Colombo"
+      }}
+    ], "filter": [
+      {"range": {"@timestamp": {"gte": "now-5m", "lte": "now"}}}
+    ]}},
+    "size": 20,
+    "_source": ["@timestamp", "log", "kubernetes.namespace_name", "kubernetes.pod_name"]
+  }
+)
+```
+
+#### Search by trace/request ID (OnPrem)
+```json
+opensearch_search_raw(
+  index="container-logs-*",
+  body={
+    "query": {"bool": {"must": [
+      {"query_string": {
+        "query": "log:\"*1d4867ac-65cb-4de8-8d46-aaef62f6b5fb*\"",
+        "analyze_wildcard": true,
+        "time_zone": "Asia/Colombo"
+      }}
+    ], "filter": [
+      {"range": {"@timestamp": {"gte": "now-1h", "lte": "now"}}}
+    ]}},
+    "size": 100,
+    "sort": [{"@timestamp": "asc"}],
+    "_source": ["@timestamp", "log", "kubernetes.namespace_name", "kubernetes.pod_name", "kubernetes.container_name"]
+  }
+)
+```
+
+**Key points for OnPrem:**
+- Use `query_string` with `analyze_wildcard: true`
+- Wrap the pattern in **double quotes**: `"*pattern*"` not `*pattern*`
+- Include `time_zone: "Asia/Colombo"` for consistency with dashboard
+- This approach matches what OpenSearch Dashboards UI does
+
+### Cloud Clusters (AWS/Azure: dev-aws-*, prod-azure-*, stg-azure-*)
+
+For **cloud clusters** (AWS/Azure), the `log` field is mapped as **keyword** (not analyzed text). Use `wildcard` queries:
+
+#### Search errors in logs (Cloud)
 ```json
 opensearch_search_raw(
   index="container-logs-*",
@@ -113,7 +162,7 @@ opensearch_search_raw(
 )
 ```
 
-### Search by trace/request ID in logs
+#### Search by trace/request ID (Cloud)
 ```json
 opensearch_search_raw(
   index="container-logs-*",
@@ -128,7 +177,12 @@ opensearch_search_raw(
 )
 ```
 
-### Aggregate error logs by namespace
+**Key points for Cloud:**
+- Use `wildcard` query (NOT `query_string`)
+- No quotes needed around the pattern
+- `query_string` with `log:*pattern*` returns 0 hits on these clusters
+
+### Aggregate error logs by namespace (Works on both)
 ```json
 opensearch_aggregate(
   index="container-logs-*",
@@ -140,7 +194,13 @@ opensearch_aggregate(
 )
 ```
 
-**Note**: `query_string` and `opensearch_search` work fine for **non-keyword fields** like `kubernetes.namespace_name`, `stream`, `kubernetes.pod_name`, etc.
+### How to Determine Cluster Type
+
+Check the active cluster name using `opensearch_get_active_cluster`:
+- If cluster name contains **`onprem`** → use `query_string` with `analyze_wildcard: true`
+- Otherwise (AWS/Azure) → use `wildcard` queries
+
+**Note**: `query_string` and `opensearch_search` work fine for **non-keyword fields** like `kubernetes.namespace_name`, `stream`, `kubernetes.pod_name`, etc. on **all clusters**.
 
 ## Common Query Patterns (non-log fields — use opensearch_search)
 
