@@ -46,7 +46,7 @@ There is no proxy or standalone OpenSearch server involved.
 
 ## Quick Setup
 
-**TL;DR:** Run the initialization script to set everything up automatically:
+### 1. Run the initialization script
 
 ```bash
 ./init.sh
@@ -59,6 +59,37 @@ This script will:
 - ✓ Install Chromium browser (for cookie auto-refresh)
 - ✓ Generate `.mcp.json` with correct absolute paths
 - ✓ Verify the setup
+
+### 2. Add your cluster URLs
+
+Edit `opensearch-mcp/clusters.py` and replace the sample URLs with your actual OpenSearch cluster endpoints:
+
+### 3. Fetch authentication cookies
+
+```bash
+cd opensearch-mcp
+source venv/bin/activate
+
+# List available clusters (from clusters.py)
+./get-cookies.py --list
+
+# Fetch cookies for your cluster (opens browser for SSO login)
+./get-cookies.py <cluster-short-name>
+
+# Deactivate venv and return to project root
+deactivate
+cd ..
+```
+
+This writes `cookies.json` which the server reads on every request. This is one-time setup — the MCP server will auto-refresh cookies after this.
+
+### 4. Start Claude Code
+
+```bash
+claude
+```
+
+Claude will automatically load the MCP server and have access to all OpenSearch tools.
 
 ### Manual Setup (if needed)
 
@@ -91,7 +122,7 @@ playwright install chromium
       "command": "/absolute/path/to/opensearch-mcp/venv/bin/python",
       "args": ["/absolute/path/to/opensearch-mcp/server.py"],
       "env": {
-        "OPENSEARCH_URL": "https://your-opensearch-dashboard-url",
+        "OPENSEARCH_URL": "https://opensearch-dashboard.example.com",
         "OPENSEARCH_VERIFY_SSL": "true"
       }
     }
@@ -99,31 +130,15 @@ playwright install chromium
 }
 ```
 
+#### 4. Configure your clusters
+
+Edit `opensearch-mcp/clusters.py` with your actual cluster URLs.
+
+#### 5. Fetch cookies
+
+Follow step 3 from Quick Setup above.
+
 </details>
-
-### Get Initial Cookies
-
-After running `init.sh`, fetch cookies for your cluster:
-
-```bash
-cd opensearch-mcp
-
-# List available clusters
-./get-cookies.py --list
-
-# Fetch cookies for a cluster (opens browser for SSO login)
-./get-cookies.py prod-azure-us-cdp
-```
-
-This writes `cookies.json` which the server reads on every request.
-
-### Start Claude Code
-
-```bash
-claude
-```
-
-Claude will automatically load the MCP server and have access to all OpenSearch tools.
 
 ## Usage Examples
 
@@ -158,8 +173,12 @@ This opens a browser for interactive login. After login, cookies are saved — *
 ### Switching clusters
 
 ```bash
+cd opensearch-mcp
+source venv/bin/activate
 ./get-cookies.py <cluster-short-name>
-# Then restart Claude Code to pick up the new OPENSEARCH_URL
+deactivate
+cd ..
+# Then restart Claude Code to pick up the new cluster
 ```
 
 ## Project Structure
