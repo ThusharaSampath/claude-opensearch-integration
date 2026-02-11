@@ -6,7 +6,7 @@ description: Guide for efficiently querying OpenSearch logs via MCP tools with m
 # OpenSearch MCP Usage Guide
 
 You have access to an OpenSearch MCP server that queries container logs via OpenSearch Dashboards.
-The cluster has 6.6B+ documents. **Always include time ranges to avoid timeouts.**
+The cluster has billions of documents. **Always include time ranges to avoid timeouts.**
 
 ## Available Tools
 
@@ -273,12 +273,12 @@ CLUSTERS = {
 
 ### Common aliases
 When the user says any of these, map to the corresponding cluster:
-- "prod" / "production" → `prod-azure-us-cdp` (the main production cluster)
+- "prod" / "production" → `prod-azure-us-cdp`
 - "dev" / "development" → `dev-azure-us-cdp`
-- "stg" / "staging" → `stg-azure-us-cdp`
+- "stg" / "staging" → `stg-us-cdp`
 - "dev onprem" → `dev-onprem-cp` or `dev-onprem-dp` (ask which)
-- "prod eu" → `prod-azure-eu-cdp`
-- "dev eu" → `dev-azure-eu-cdp`
+- "prod eu" → `prod-eu-cdp`
+- "dev eu" → `dev-eu-cdp`
 - "tenant-a" → `prod-tenant-a-userprod`
 - "tenant-c" / "tc" → `prod-tenant-c`
 - "tenant-d" → `prod-tenant-d`
