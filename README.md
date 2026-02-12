@@ -2,6 +2,8 @@
 
 A custom [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that lets [Claude Code](https://docs.anthropic.com/en/docs/claude-code) query OpenSearch clusters protected by OpenID Connect (Azure AD) authentication — without direct CLI access to the cluster.
 
+Read the journey of building this solution in [From Hours to Seconds: Building an AI-Powered OpenSearch Log Analyzer with Claude](https://mkt-sampath97.medium.com/1a27ac1a30ee)
+
 ## Problem
 
 - OpenSearch clusters sit behind **OpenSearch Dashboards** with **OIDC / Azure AD** auth
