@@ -152,7 +152,10 @@ async def _refresh_cookies_for_url(url: str, headless: bool = True) -> str | Non
             log(f"[cookie-refresh] Navigating to {url}")
             await page.goto(url, wait_until="domcontentloaded")
             log(f"[cookie-refresh] Page loaded. Current URL: {page.url}")
-            log(f"[cookie-refresh] Page title: {await page.title()}")
+            try:
+                log(f"[cookie-refresh] Page title: {await page.title()}")
+            except Exception:
+                log("[cookie-refresh] Page title unavailable (navigation in progress — this is OK)")
 
             # Wait for SSO redirect to complete and cookies to appear
             cookies = {}
