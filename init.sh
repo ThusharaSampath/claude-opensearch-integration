@@ -105,8 +105,22 @@ else
     echo -e "${GREEN}       ✓ Playwright installed${NC}"
 fi
 
-# Step 4: Generate .mcp.json with correct paths
-echo -e "${YELLOW}[4/5] Generating .mcp.json configuration...${NC}"
+# Step 4: Set up .env file for cluster URLs
+echo -e "${YELLOW}[4/6] Setting up .env for cluster URLs...${NC}"
+if [ ! -f "${PROJECT_ROOT}/.env" ]; then
+    if [ -f "${PROJECT_ROOT}/.env.example" ]; then
+        cp "${PROJECT_ROOT}/.env.example" "${PROJECT_ROOT}/.env"
+        echo -e "${GREEN}       ✓ .env created from .env.example${NC}"
+        echo -e "       ${YELLOW}Edit .env to add your cluster URLs${NC}"
+    else
+        echo -e "${YELLOW}       ⚠ .env.example not found — skipping .env setup${NC}"
+    fi
+else
+    echo -e "${GREEN}       ✓ .env already exists${NC}"
+fi
+
+# Step 5: Generate .mcp.json with correct paths
+echo -e "${YELLOW}[5/6] Generating .mcp.json configuration...${NC}"
 
 # Default cluster URL (user can change this after setup)
 DEFAULT_CLUSTER_URL="https://opensearch-dashboard.example.com"
@@ -132,9 +146,9 @@ EOF
 echo -e "${GREEN}       ✓ .mcp.json created at ${MCP_JSON}${NC}"
 echo "       Default cluster: ${DEFAULT_CLUSTER_URL}"
 
-# Step 5: Verify setup
+# Step 6: Verify setup
 echo ""
-echo -e "${YELLOW}[5/5] Verifying setup...${NC}"
+echo -e "${YELLOW}[6/6] Verifying setup...${NC}"
 
 # Check if server.py exists
 if [ ! -f "${PROJECT_ROOT}/server.py" ]; then
@@ -168,7 +182,7 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo ""
-echo -e "  ${YELLOW}1.${NC} Add your cluster URLs to ${GREEN}clusters.py${NC}"
+echo -e "  ${YELLOW}1.${NC} Add your cluster URLs to ${GREEN}.env${NC} (copied from .env.example)"
 echo ""
 echo -e "  ${YELLOW}2.${NC} Activate the virtual environment:"
 echo -e "     ${GREEN}source venv/bin/activate${NC}"

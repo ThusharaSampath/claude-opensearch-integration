@@ -59,12 +59,13 @@ This script will:
 - ✓ Create a virtual environment at `venv/`
 - ✓ Install all dependencies (mcp, httpx, playwright)
 - ✓ Install Chromium browser (for cookie auto-refresh)
+- ✓ Create `.env` from `.env.example` (for cluster URLs)
 - ✓ Generate `.mcp.json` with correct absolute paths
 - ✓ Verify the setup
 
 ### 2. Add your cluster URLs
 
-Edit `clusters.py` and replace the sample URLs with your actual OpenSearch cluster endpoints:
+Edit `.env` (auto-created from `.env.example` by `init.sh`) and fill in your actual OpenSearch cluster URLs:
 
 ### 3. Fetch authentication cookies
 
@@ -131,7 +132,7 @@ playwright install chromium
 
 #### 4. Configure your clusters
 
-Edit `clusters.py` with your actual cluster URLs.
+Copy `.env.example` to `.env` and fill in your actual cluster URLs.
 
 #### 5. Fetch cookies
 
@@ -180,13 +181,15 @@ deactivate
 
 ```
 opensearch-agent/
-├── init.sh                            # 🚀 Setup automation script (run this first!)
+├── init.sh                            # Setup automation script (run this first!)
+├── .env.example                       # Cluster URL template (tracked)
+├── .env                               # Your cluster URLs (gitignored, created by init.sh)
 ├── .mcp.json                          # MCP server config (auto-generated, gitignored)
-├── .gitignore                         # Ignores venv/, cookies, logs, etc.
+├── .gitignore                         # Ignores venv/, cookies, logs, .env, etc.
 ├── README.md                          # This file
 ├── CLAUDE.md                          # Detailed knowledge base & learnings
 ├── server.py                          # MCP server (cookie auth, auto-refresh, context optimization)
-├── clusters.py                        # Shared cluster registry
+├── clusters.py                        # Cluster registry (loads URLs from .env, descriptions in source)
 ├── get-cookies.py                     # Playwright-based cookie fetcher (multi-cluster SSO)
 ├── requirements.txt                   # Python dependencies
 ├── cookies.json                       # Auto-managed cookie store (gitignored)

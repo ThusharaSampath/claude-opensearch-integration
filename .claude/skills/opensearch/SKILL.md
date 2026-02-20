@@ -260,16 +260,16 @@ opensearch_search_raw(
 
 ## Cluster Map
 
-**IMPORTANT**: When the user mentions a cluster, first read `opensearch-mcp/clusters.py` to get the available clusters and their short names. The cluster registry is defined in the `CLUSTERS` dictionary in that file.
+**IMPORTANT**: When the user mentions a cluster, first read `clusters.py` to get the available clusters and their short names. The cluster registry is built from the `.env` file (URLs) and the `DESCRIPTIONS` dict in `clusters.py`.
 
 ### Example Cluster Format
-Users configure their clusters in `opensearch-mcp/clusters.py`. Example entries:
-```python
-CLUSTERS = {
-    "dev-aws-eu-cluster": ("https://opensearch-dashboard.dev.example.com", "Dev AWS EU Cluster"),
-    "prod-aws-cluster": ("https://opensearch-dashboard.prod.example.com", "Prod AWS Cluster"),
-}
+Users configure their cluster URLs in `.env` (copied from `.env.example`). Example entries:
+```bash
+CLUSTER_DEV_AWS_EU_CP=https://opensearch-dashboard.dev.example.com
+CLUSTER_PROD_AWS_EU_CDP=https://opensearch-dashboard.prod.example.com
 ```
+
+At runtime, `clusters.py` loads these into the `CLUSTERS` dict as `(url, description)` tuples.
 
 ### Common aliases
 When the user says any of these, map to the corresponding cluster:
